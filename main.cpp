@@ -33,7 +33,7 @@
 
 using namespace std;
 
-int init(vector <coordinates> &x, vector <coordinates> &v, vector <coordinates> &xm, int natoms, triclinicbox box, double &temp, double dt, double mindist, double maxtries, double &ke);
+int init(vector <coordinates> &x, vector <coordinates> &v, vector <coordinates> &xm, int natoms, triclinicbox box, double &temp, double dt, double mindist, double maxtries, double &ke, string pdbfile);
 void integrate(int a, vector <coordinates> &x, vector <coordinates> &v, vector <coordinates> &f, int natoms, double dt, double &temp, double &ke, bool tcoupl, double reft, double coll_freq);
 void force(vector <coordinates> &f, double &en, vector <coordinates> &x, triclinicbox box, int natoms, double rcut2, double ecut, vector < vector <int> > &neighb_list);
 
@@ -319,7 +319,7 @@ int main(int argc, char *argv[])
     XDRFILE *xd;
     xd = xdrfile_open(xtcfile.c_str(), "w");
 
-    if (init(x, v, xm, natoms, box, temp, dt, mindist, maxtries, ke) != 0)
+    if (init(x, v, xm, natoms, box, temp, dt, mindist, maxtries, ke, pdbfile) != 0)
     {
         return -1;
     }
@@ -488,7 +488,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-int init(vector <coordinates> &x, vector <coordinates> &v, vector <coordinates> &xm, int natoms, triclinicbox box, double &temp, double dt, double mindist, double maxtries, double &ke)
+int init(vector <coordinates> &x, vector <coordinates> &v, vector <coordinates> &xm, int natoms, triclinicbox box, double &temp, double dt, double mindist, double maxtries, double &ke, string pdbfile)
 {
     random_device rd;
     mt19937 gen(rd());
@@ -553,9 +553,8 @@ retrypoint:
     temp = sumv2 / (3.0 * natoms);
     ke = 0.5 * sumv2 / natoms;
 
-    string file = "init.pdb";
-    PdbFile pdb(file.c_str());
-    pdb.write_header(file, "WES BARNETT", "First frame");
+    PdbFile pdb(pdbfile.c_str());
+    pdb.write_header(pdbfile, "LJ MD Simulator", "First frame");
     for (int i = 0; i < natoms; i++)
     {
         pdb.write_line(i+1, "Ar", "LIG", 1, x.at(i), 1.00, 0.00);
