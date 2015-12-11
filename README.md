@@ -2,7 +2,7 @@
 
 This program simulates "Lennard-Jonseium". It's mainly a tool for learning and
 study, so don't go and use it for any kind of official research or anything (or
-do so at your own risk).
+do so at your own risk). Expect bugs and mistakes.
 
 The code is written in C++ and requires Boost (for .ini file) and libxdrfile
 (for writing trajectory to .xtc). Some of the classes I use are based on my
