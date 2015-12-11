@@ -37,3 +37,5 @@ To run do:
 
 See Frenkel and Smit's *Understanding Molecular Simulation* as well as Allen and
 Tildesley's *Computer Simulations of Liquids*.
+
+![Box of Lennard-Jonesium](lj.png)
