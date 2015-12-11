@@ -1,5 +1,7 @@
 # Lennard Jones MD Simulator in C++
 
+![Box of Lennard-Jonesium](lj.png)
+
 This program simulates "Lennard-Jonseium". It's mainly a tool for learning and
 study, so don't go and use it for any kind of official research or anything (or
 do so at your own risk). Expect bugs and mistakes.
@@ -38,4 +40,3 @@ To run do:
 See Frenkel and Smit's *Understanding Molecular Simulation* as well as Allen and
 Tildesley's *Computer Simulations of Liquids*.
 
-![Box of Lennard-Jonesium](lj.png)
