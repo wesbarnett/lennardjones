@@ -81,14 +81,14 @@ int main(int argc, char *argv[])
         cout << "ERROR: 'runcontrol.dt' needs to be a real number." << endl;
         return -1;
     }
-    const int nsteps = strtol(pt.get<std::string>("runcontrol.nsteps","10000").c_str(), &endptr, 10);
+    const int nsteps = strtol(pt.get<std::string>("runcontrol.nsteps","5000000").c_str(), &endptr, 10);
     cout << "nsteps = " << nsteps << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'runcontrol.nsteps' needs to be an integer." << endl;
         return -1;
     }
-    const int eql_steps = strtol(pt.get<std::string>("runcontrol.eql_steps","1000").c_str(), &endptr, 10);
+    const int eql_steps = strtol(pt.get<std::string>("runcontrol.eql_steps","10000").c_str(), &endptr, 10);
     cout << "eql_steps = " << eql_steps << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
 
 
     cout << endl << "[ system ]" << endl;
-    const int natoms = strtol(pt.get<std::string>("system.natoms","100").c_str(), &endptr, 10);
+    const int natoms = strtol(pt.get<std::string>("system.natoms","108").c_str(), &endptr, 10);
     cout << "natoms = " << natoms << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
@@ -145,14 +145,14 @@ int main(int argc, char *argv[])
         cout << "ERROR: 'system.inittemp' needs to be a real number." << endl;
         return -1;
     }
-    const double rcut = strtod(pt.get<std::string>("system.rcut","9.0").c_str(), &endptr); 
+    const double rcut = strtod(pt.get<std::string>("system.rcut","2.5").c_str(), &endptr); 
     cout << "rcut = " << rcut << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'system.rcut' needs to be a real number." << endl;
         return -1;
     }
-    const double rlist = strtod(pt.get<std::string>("runcontrol.rlist","10.0").c_str(), &endptr); 
+    const double rlist = strtod(pt.get<std::string>("runcontrol.rlist","3.5").c_str(), &endptr); 
     const double rlist2 = rlist*rlist;
     cout << "rlist = " << rlist << endl;
     if (*endptr != ' ' && *endptr != 0)
@@ -203,7 +203,7 @@ int main(int argc, char *argv[])
         cout << "ERROR: 'temperature.coll_freq' needs to be a real number." << endl;
         return -1;
     }
-    const double reft = strtod(pt.get<std::string>("temperature.reft","1.00").c_str(), &endptr); 
+    const double reft = strtod(pt.get<std::string>("temperature.reft","1.0").c_str(), &endptr); 
     cout << "reft = " << reft << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
