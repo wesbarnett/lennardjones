@@ -45,6 +45,7 @@ class Velocity {
         string outfile;
         vector <coordinates> hist;
     public:
+        Velocity();
         Velocity(int nbins, double max, double min, string outfile);
         void sample(vector <coordinates> &v);
         void normalize(int natoms);

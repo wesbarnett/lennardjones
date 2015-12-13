@@ -44,6 +44,7 @@ class Rdf {
         vector <double> g;
         int freq;
     public:
+        Rdf();
         Rdf(int nbins, triclinicbox &box, string outfile);
         void sample(vector <coordinates> &x, triclinicbox &box);
         void normalize(int natoms, triclinicbox &box);

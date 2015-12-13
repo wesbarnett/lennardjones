@@ -21,8 +21,10 @@
  */
 
 #include "coordinates.h"
+#include "NeighborList.h"
 #include "PdbFile.h"
 #include "Rdf.h"
+#include "Thermostat.h"
 #include "triclinicbox.h"
 #include "utils.h"
 #include "Velocity.h"
@@ -41,13 +43,520 @@
 
 using namespace std;
 
-int init(vector <coordinates> &x, vector <coordinates> &v, vector <coordinates> &xm, int natoms, triclinicbox box, double &temp, double dt, double mindist, double maxtries, double &ke, string pdbfile);
-void integrate(int a, vector <coordinates> &x, vector <coordinates> &v, vector <coordinates> &f, int natoms, double dt, double &temp, double &ke, bool tcoupl, double reft, double coll_freq);
-void force(vector <coordinates> &f, double &en, vector <coordinates> &x, triclinicbox box, int natoms, double rcut2, double ecut, vector < vector <int> > &neighb_list);
+class System {
+    private:
+        double dt;
+        double ecut;
+        double entot;
+        double entot_avg;
+        double halfdt;
+        double halfdt2;
+        double i2natoms;
+        double i3natoms;
+        double ke;
+        double ke_avg;
+        double ke_stddev;
+        double pe;
+        double pe_avg;
+        double pe_stddev;
+        double rcut2;
+        double rho;
+        double temp;
+        double temp_avg;
+        double temp_stddev;
+        int natoms;
+        int natoms2;
+        int nsample;
+        int nsteps;
+        NeighborList nlist;
+        Rdf rdf;
+        triclinicbox box;
+        Thermostat tstat;
+        vector <coordinates> f;
+        vector <coordinates> v;
+        vector <coordinates> x;
+        vector <double> ke_all;
+        vector <double> pe_all;
+        vector <double> temp_all;
+        Velocity vel;
+        XDRFILE *xd;
+    public:
+        System(int natoms, int nsteps, double rho, double rcut, double rlist, double temp, double dt, double mindist, double maxtries, string pdbfile, double reft, double coll_freq, string xtcfile, int rdf_nbins, string rdf_outfile, int v_nbins, double v_max, double v_min, string v_outfile);
+        void CalcForce();
+        void CloseXTC();
+        void ErrorAnalysis(int nblocks);
+        void Integrate(int a, bool tcoupl);
+        void NormalizeAverages();
+        void NormalizeRdf();
+        void NormalizeVel();
+        void OutputVel();
+        void OutputRdf();
+        void Print(int step);
+        void PrintAverages();
+        void PrintHeader();
+        void Sample();
+        void SampleRdf();
+        void SampleVel();
+        void UpdateNeighborList();
+        void WriteXTC(int step);
+        triclinicbox GetBox();
+};
 
-void update_neighb_list(vector < vector <int> > &neighb_list, vector <coordinates> &x, triclinicbox &box, double rlist2);
+System::System(int natoms, int nsteps, double rho, double rcut, double rlist, double temp, double dt, double mindist, double maxtries, string pdbfile, double reft, double coll_freq, string xtcfile, int rdf_nbins, string rdf_outfile, int v_nbins, double v_max, double v_min, string v_outfile)
+{
 
-void write_frame(XDRFILE *xd, vector <coordinates> x, triclinicbox &box, int step, double dt);
+    this->x.resize(natoms);
+    this->v.resize(natoms);
+    this->f.resize(natoms);
+    this->dt = dt;
+    this->halfdt = 0.5*dt;
+    this->halfdt2 = 0.5*dt*dt;
+    this->natoms = natoms;
+    this->natoms2 = natoms*natoms;
+    this->i2natoms = 1.0/(2.0*(double)natoms);
+    this->i3natoms = 1.0/(3.0*(double)natoms);
+    this->rcut2 = rcut*rcut;
+    this-> ecut = 4.0 * (1.0/pow(rcut,12) - 1.0/pow(rcut,6));
+    this->nlist.Init(natoms, rlist);
+    this->nsample = 0;
+    this->temp_avg = 0.0;
+    this->ke_avg = 0.0;
+    this->pe_avg = 0.0;
+    this->entot_avg = 0.0;
+    this->rho = rho;
+    this->nsteps = nsteps;
+    this->xd = xdrfile_open(xtcfile.c_str(), "w");
+
+    // Calculate box dimensions based on density and number of atoms.
+    double box_side = pow(natoms/rho,1.0/3.0);
+    this->box.at(X).at(X) = box_side;
+    this->box.at(X).at(Y) = 0.0;
+    this->box.at(X).at(Z) = 0.0;
+    this->box.at(Y).at(Y) = box_side;
+    this->box.at(Y).at(X) = 0.0;
+    this->box.at(Y).at(Z) = 0.0;
+    this->box.at(Z).at(Z) = box_side;
+    this->box.at(Z).at(X) = 0.0;
+    this->box.at(Z).at(Y) = 0.0;
+    cout << "Box is " << box_side << " in each dimension." << endl << endl;
+
+    this->rdf = Rdf(rdf_nbins, box, rdf_outfile);
+    this->vel = Velocity(v_nbins, v_max, v_min, v_outfile);
+    this->tstat = Thermostat(reft, coll_freq, dt);
+
+    // Draw from a uniform distribution centered at the origin
+    random_device rd;
+    mt19937 gen(rd());
+    uniform_real_distribution<double> disx(-box.at(X).at(X)/2.0,box.at(X).at(X)/2.0);
+    uniform_real_distribution<double> disy(-box.at(Y).at(Y)/2.0,box.at(Y).at(Y)/2.0);
+    uniform_real_distribution<double> disz(-box.at(Z).at(Z)/2.0,box.at(Z).at(Z)/2.0);
+    normal_distribution<double> dis_vel(0.0, sqrt(temp));
+    coordinates sumv(0.0, 0.0, 0.0);
+    double sumv2 = 0.0;
+    const double mindist2 = mindist*mindist;
+
+    // Generate random locations and velocities drawn from Gaussian distribution
+    cout << "Generating point initial configuration...";
+    
+    int i = 0;
+    while (i < natoms)
+    {
+
+retrypoint:
+
+        this->x.at(i).at(X) = disx(gen);
+        this->x.at(i).at(Y) = disy(gen);
+        this->x.at(i).at(Z) = disz(gen);
+
+        for (int j = 0; j < i; j++)
+        {
+
+            // Too close to to other points?
+            if (distance2(x.at(i), x.at(j), box) < mindist2)
+            {
+                if (i > maxtries)
+                {
+                    cout << "ERROR: Exceeded maximum number of tries in generating initial configuration." << endl;
+                }
+                goto retrypoint;
+            }
+
+        }
+
+        // Point accepted if we're here
+        
+        this->v.at(i).at(X) = dis_vel(gen);
+        this->v.at(i).at(Y) = dis_vel(gen);
+        this->v.at(i).at(Z) = dis_vel(gen);
+
+        sumv += this->v.at(i);
+        sumv2 += dot(this->v.at(i), this->v.at(i));
+
+        i++;
+
+    }
+
+    sumv /= this->natoms;
+    sumv2 /= this->natoms;
+    double fs = sqrt(3.0*temp/sumv2);
+
+    sumv2 = 0.0;
+    for (int i = 0; i < this->natoms; i++)
+    {
+        this->v.at(i) = (this->v.at(i) - sumv) * fs;
+        sumv2 += dot(this->v.at(i), this->v.at(i));
+    }
+    this->temp = sumv2 / (3.0 * this->natoms);
+    this->ke = 0.5 * sumv2 / this->natoms;
+
+    PdbFile pdb(pdbfile.c_str());
+    pdb.write_header(pdbfile, "LJ MD Simulator", "First frame");
+    for (int i = 0; i < natoms; i++)
+    {
+        pdb.write_line(i+1, "Ar", "LIG", 1, x.at(i), 1.00, 0.00);
+    }
+    pdb.close();
+
+    cout << "done." << endl << endl;
+}
+
+void System::CalcForce()
+{
+
+    this->pe = 0.0;
+    for (int i = 0; i < this->natoms; i++)
+    {
+        this->f.at(i) = 0.0;
+    }
+
+    #pragma omp parallel
+    {
+
+        vector <coordinates> f_thread(natoms);
+        double pe_thread = 0.0;
+        for (int i = 0; i < this->natoms; i++)
+        {
+            f_thread.at(i) = 0.0;
+        }
+
+        // Uses neighbor lists to calculate forces and energies. We didn't
+        // double count the atoms on the neighbor list, so we have to look at
+        // each atom's list. The last atom never has it's own list since it will
+        // always be on at least one other atom's list (or it is too far away to
+        // interact with any other atom)
+        #pragma omp for schedule(guided, 15)
+        for (int i = 0; i < this->natoms-1; i++)
+        {
+
+            for (int neighb = 0; neighb < nlist.GetSize(i); neighb++)
+            {
+
+                int j = nlist.GetNeighbor(i, neighb);
+                coordinates dr = pbc(x.at(i) - x.at(j), box);
+                double r2 = dot(dr,dr);
+
+                if (r2 <= this->rcut2)
+                {
+
+                    double r2i = 1.0/r2;
+                    double r6i = pow(r2i,3);
+                    double ff = 48.0 * r2i * r6i * (r6i - 0.5);
+                    
+                    // We have to count the force both on atom i from j and on j
+                    // from i, since we didn't double count on the neighbor
+                    // lists
+                    f_thread.at(i) += ff * dr;
+                    f_thread.at(j) -= ff * dr;
+
+                    pe_thread += 4.0*r6i*(r6i-1.0) - this->ecut;
+
+                }
+
+            }
+
+        }
+
+        #pragma omp critical
+        {
+
+            for (int i = 0; i < natoms; i++)
+            {
+                this->f.at(i) += f_thread.at(i);
+                this->pe += pe_thread;
+            }
+
+        }
+
+    }
+
+    this->pe /= this->natoms2;
+
+    return;
+
+}
+
+// Velocity Verlet integrator in two parts
+void System::Integrate(int a, bool tcoupl)
+{
+
+    if (a == 0) 
+    {
+        #pragma omp for schedule(guided, 15)
+        for (int i = 0; i < this->natoms; i++)
+        {
+            this->x.at(i) += this->v.at(i)*this->dt + this->f.at(i)*this->halfdt2;
+            this->v.at(i) += this->f.at(i)*this->halfdt;
+        }
+    }
+    else if (a == 1)
+    {
+
+        double sumv2 = 0.0;
+
+        #pragma omp parallel
+        {
+
+            double sumv2_thread = 0.0;
+
+            #pragma omp for schedule(guided, 15)
+            for (int i = 0; i < natoms; i++)
+            {
+                this->v.at(i) += this->f.at(i)*this->halfdt;
+                sumv2_thread += dot(this->v.at(i), this->v.at(i));
+            }
+
+            if (tcoupl == true)
+            {
+                tstat.DoCollisions(v);
+            }
+                
+            #pragma omp critical
+            {
+                sumv2 += sumv2_thread;
+            }
+
+        }
+
+        this->temp = sumv2 * this->i3natoms;
+        this->ke = sumv2 * this->i2natoms;
+
+    }
+
+    return;
+}
+
+void System::Print(int step)
+{
+    cout << setw(14) << step;
+    cout << setw(14) << step*this->dt;
+    cout << setw(14) << this->temp;
+    cout << setw(14) << this->ke;
+    cout << setw(14) << this->pe;
+    cout << setw(14) << this->pe+this->ke << endl;
+    return;
+}
+
+void System::PrintHeader()
+{
+    cout << setw(14) << "Step";
+    cout << setw(14) << "Time";
+    cout << setw(14) << "Temp";
+    cout << setw(14) << "KE";
+    cout << setw(14) << "PE";
+    cout << setw(14) << "Tot. En." << endl;
+    return;
+}
+
+void System::PrintAverages()
+{
+    cout << "AVERAGES & CONSTANTS (" << this->nsample << " steps sampled out of " << this->nsteps << " total steps)" << endl;
+    cout << setw(20) << "Number: " << setw(14) << this->natoms << endl;
+    cout << setw(20) << "Density: " << setw(14) << this->rho << endl;
+    cout << setw(20) << "Volume: " << setw(14) << volume(this->box) << endl;
+    cout << setw(20) << "Temperature: " << setw(14) << this->temp_avg << " +/- " << setw(14) << this->temp_stddev << endl;
+    cout << setw(20) << "Kinetic Energy: " << setw(14) << this->ke_avg << " +/- " << setw(14) << this->ke_stddev << endl;
+    cout << setw(20) << "Potential Energy: " << setw(14) << this->pe_avg << " +/- " << setw(14) << this->pe_stddev << endl;
+    cout << setw(20) << "Total Energy: " << setw(14) << this->entot_avg << endl;
+    return;
+}
+
+void System::UpdateNeighborList()
+{
+    this->nlist.Update(this->x, this->box);
+    return;
+}
+
+void System::SampleRdf()
+{
+    this->rdf.sample(this->x, this->box);
+    return;
+}
+
+void System::NormalizeRdf()
+{
+    this->rdf.normalize(this->natoms, this->box);
+    return;
+}
+
+void System::OutputRdf()
+{
+    this->rdf.output();
+    return;
+}
+
+void System::SampleVel()
+{
+    this->vel.sample(this->v);
+    return;
+}
+
+void System::NormalizeVel()
+{
+    this->vel.normalize(natoms);
+    return;
+}
+
+void System::OutputVel()
+{
+    this->vel.output();
+    return;
+}
+
+void System::Sample()
+{
+    this->nsample++;
+    this->temp_all.push_back(this->temp);
+    this->temp_avg += this->temp;
+    this->ke_all.push_back(this->ke);
+    this->ke_avg += this->ke;
+    this->pe_all.push_back(this->pe);
+    this->pe_avg += this->pe;
+    this->entot_avg += this->ke + this->pe;
+    return;
+}
+
+
+void System::WriteXTC(int step)
+{
+    rvec *x_xtc;
+    matrix box_xtc;
+
+    // Convert to "nanometer" (even though we are in reduced units)
+    box_xtc[0][0] = this->box.at(0).at(0)/10.0;
+    box_xtc[0][1] = this->box.at(0).at(1)/10.0;
+    box_xtc[0][2] = this->box.at(0).at(2)/10.0;
+    box_xtc[1][0] = this->box.at(1).at(0)/10.0;
+    box_xtc[1][1] = this->box.at(1).at(1)/10.0;
+    box_xtc[1][2] = this->box.at(1).at(2)/10.0;
+    box_xtc[2][0] = this->box.at(2).at(0)/10.0;
+    box_xtc[2][1] = this->box.at(2).at(1)/10.0;
+    box_xtc[2][2] = this->box.at(2).at(2)/10.0;
+
+    x_xtc = new rvec[this->x.size()];
+    #pragma omp for
+    for (unsigned int i = 0; i < x.size(); i++)
+    {
+
+        // Shift all the points to the center of the box
+        this->x.at(i) = pbc(this->x.at(i), this->box);
+        this->x.at(i).at(X) += this->box.at(X).at(X)/2.0;
+        this->x.at(i).at(Y) += this->box.at(Y).at(Y)/2.0;
+        this->x.at(i).at(Z) += this->box.at(Z).at(Z)/2.0;
+
+        // Convert to "nanometers"
+        x_xtc[i][X] = this->x.at(i).at(X)/10.0;
+        x_xtc[i][Y] = this->x.at(i).at(Y)/10.0;
+        x_xtc[i][Z] = this->x.at(i).at(Z)/10.0;
+
+    }
+
+    write_xtc(this->xd, this->x.size(), step, this->dt*step, box_xtc, x_xtc, 1000);
+
+    return;
+}
+
+void System::CloseXTC()
+{
+    xdrfile_close(this->xd);
+}
+
+void System::ErrorAnalysis(int nblocks)
+{
+    vector <double> temp_block(nblocks);
+    vector <double> pe_block(nblocks);
+    vector <double> ke_block(nblocks);
+
+    for (int i = 0; i < nblocks; i++)
+    {
+        int first = i * this->nsample / nblocks;
+        int last;
+
+        if (i == nblocks)
+        {
+            last = this->nsample;
+        }
+        else
+        {
+            last = (i + 1) * this->nsample / nblocks;
+        }
+
+        for (int j = first; j < last; j++)
+        {
+            temp_block.at(i) += this->temp_all.at(j);
+            ke_block.at(i) += this->ke_all.at(j);
+            pe_block.at(i) += this->pe_all.at(j);
+        }
+
+        temp_block.at(i) /= (double) (last - first);
+        ke_block.at(i) /= (double) (last - first);
+        pe_block.at(i) /= (double) (last - first);
+    }
+
+    double temp_blockavg = 0.0;
+    double ke_blockavg = 0.0;
+    double pe_blockavg = 0.0;
+
+    for (int i = 0; i < nblocks; i++)
+    {
+        temp_blockavg += temp_block.at(i);
+        ke_blockavg += ke_block.at(i);
+        pe_blockavg += pe_block.at(i);
+    }
+
+    temp_blockavg /= nblocks;
+    pe_blockavg /= nblocks;
+    ke_blockavg /= nblocks;
+
+    this->temp_stddev = 0.0;
+    this->ke_stddev = 0.0;
+    this->pe_stddev = 0.0;
+
+    for (int i = 0; i < nblocks; i++)
+    {
+        this->temp_stddev += pow(temp_block.at(i),2) - pow(temp_blockavg,2);
+        this->ke_stddev += pow(ke_block.at(i),2) - pow(ke_blockavg,2);
+        this->pe_stddev += pow(pe_block.at(i),2) - pow(pe_blockavg,2);
+    }
+
+    this->temp_stddev /= (nblocks-1);
+    this->ke_stddev /= (nblocks-1);
+    this->pe_stddev /= (nblocks-1);
+
+    this->temp_stddev = sqrt(this->temp_stddev);
+    this->pe_stddev = sqrt(this->pe_stddev);
+    this->ke_stddev = sqrt(this->ke_stddev);
+
+    return;
+}
+
+void System::NormalizeAverages()
+{
+    this->temp_avg /= (double) this->nsample;
+    this->ke_avg /= (double) this->nsample;
+    this->pe_avg /= (double) this->nsample;
+    this->entot_avg /= (double) this->nsample;
+    return;
+}
 
 int main(int argc, char *argv[])
 {
@@ -163,7 +672,6 @@ int main(int argc, char *argv[])
         return -1;
     }
     const double rlist = strtod(pt.get<std::string>("runcontrol.rlist","3.5").c_str(), &endptr); 
-    const double rlist2 = rlist*rlist;
     cout << "rlist = " << rlist << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
@@ -239,7 +747,7 @@ int main(int argc, char *argv[])
     const string rdf_outfile = pt.get<std::string>("rdf.outfile","rdf.dat");
     cout << "outfile = " << rdf_outfile << endl;
     const int rdf_freq = strtol(pt.get<std::string>("rdf.freq","1000").c_str(), &endptr, 10);
-    cout << "freq = " << rdf_nbins << endl;
+    cout << "freq = " << rdf_freq << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'rdf.freq' needs to be an integer." << endl;
@@ -304,517 +812,75 @@ int main(int argc, char *argv[])
     }
     cout << endl;
 
-    // Calculate box dimensions based on density and number of atoms.
-    double box_side = pow(natoms/rho,1.0/3.0);
-    triclinicbox box(box_side, box_side, box_side);
-    cout << "Box is " << box_side << " in each dimension." << endl << endl;
+    System sys(natoms, nsteps, rho, rcut, rlist, temp, dt, mindist, maxtries, pdbfile, reft, coll_freq, xtcfile, rdf_nbins, rdf_outfile, v_nbins, v_max, v_min, v_outfile);
+    sys.UpdateNeighborList();
+    sys.CalcForce();
+    sys.PrintHeader();
+    sys.Print(0);
 
-    // Constants based on rcut
-    const double rcut2 = rcut*rcut;
-    const double ecut = 4.0 * (1.0/pow(rcut,12) - 1.0/pow(rcut,6));
-
-    // Initialize variables
-    double en = 0.0;
-    double entot_avg = 0.0;
-    double ke = 0.0;
-    double ke_avg = 0.0;
-    double pe_avg = 0.0;
-    double temp_avg = 0.0;
-    int nsample = 0;
-    vector <coordinates> x(natoms);
-    vector <coordinates> xm(natoms);
-    vector <coordinates> v(natoms);
-    vector <coordinates> f(natoms);
-    vector <double> pe_all;
-    vector <double> ke_all;
-    vector <double> temp_all;
-    vector < vector <int> > neighb_list(natoms);
-    Rdf rdf(rdf_nbins, box, rdf_outfile);
-    Velocity vel(v_nbins, v_max, v_min, v_outfile);
-    XDRFILE *xd;
-
-    // Initialize system, create first neighbor list, calculate forces for
-    // logging. This is step "0"
-    if (init(x, v, xm, natoms, box, temp, dt, mindist, maxtries, ke, pdbfile) != 0)
-    {
-        return -1;
-    }
-    update_neighb_list(neighb_list, x, box, rlist2);
-    force(f, en, x, box, natoms, rcut2, ecut, neighb_list);
-
-    cout << setw(14) << "Step";
-    cout << setw(14) << "Time";
-    cout << setw(14) << "Temp";
-    cout << setw(14) << "KE";
-    cout << setw(14) << "PE";
-    cout << setw(14) << "Tot. En." << endl;
-    cout << setw(14) << 0;
-    cout << setw(14) << 0;
-    cout << setw(14) << temp;
-    cout << setw(14) << ke;
-    cout << setw(14) << en;
-    cout << setw(14) << en+ke << endl;
-
-    xd = xdrfile_open(xtcfile.c_str(), "w");
-
-    // BEGIN: Main loop ======================
     for (int step = 1; step < nsteps; step++)
     {
 
         // Main part of algorithm
-        integrate(0, x, v, f, natoms, dt, temp, ke, tcoupl, reft, coll_freq);
-        force(f, en, x, box, natoms, rcut2, ecut, neighb_list);
-        integrate(1, x, v, f, natoms, dt, temp, ke, tcoupl, reft, coll_freq);
+        sys.Integrate(0, tcoupl);
+        sys.CalcForce();
+        sys.Integrate(1, tcoupl);
 
         // Update the neighbor list this step?
         if (step % nlist == 0)
         {
-            update_neighb_list(neighb_list, x, box, rlist2);
+            sys.UpdateNeighborList();
         }
 
         // Sample the RDF this step?
         if (( dordf == true) && (step % rdf_freq == 0) && (step > eql_steps))
         {
-            rdf.sample(x, box);
+            sys.SampleRdf();
         }
 
         // Sample the velocity distribution this step?
         if (( dovel == true) && (step % v_freq == 0) && (step > eql_steps))
         {
-            vel.sample(v);
+            sys.SampleVel();
         }
 
         // Do other sampling this step?
         if ( (step % step_sample) == 0 && (step > eql_steps) )
         {
-            nsample++;
-            temp_all.push_back(temp);
-            temp_avg += temp;
-            ke_all.push_back(ke);
-            ke_avg += ke;
-            pe_all.push_back(en);
-            pe_avg += en;
-            entot_avg += ke + en;
+            sys.Sample();
         }
 
         // Print to the log this step?
         if (step % nlog == 0)
         {
-            cout << setw(14) << step;
-            cout << setw(14) << dt*step;
-            cout << setw(14) << temp;
-            cout << setw(14) << ke;
-            cout << setw(14) << en;
-            cout << setw(14) << en+ke << endl;
+            sys.Print(step);
         }
 
         // Write to the xtc file this step?
         if (step % nxtc == 0)
         {
-            write_frame(xd, x, box, step, dt);
+            sys.WriteXTC(step);
         }
 
     }
-    // END: main loop ===========================
 
-    xdrfile_close(xd);
+    sys.CloseXTC();
 
     if (dordf == true)
     {
-        rdf.normalize(natoms, box);
-        rdf.output();
+        sys.NormalizeRdf();
+        sys.OutputRdf();
     }
 
     if (dovel == true)
     {
-        vel.normalize(natoms);
-        vel.output();
+        sys.NormalizeVel();
+        sys.OutputVel();
     }
 
-    // BEGIN: error analysis --------------------
-    vector <double> temp_block(nblocks);
-    vector <double> pe_block(nblocks);
-    vector <double> ke_block(nblocks);
-
-    for (int i = 0; i < nblocks; i++)
-    {
-        int first = i * nsample / nblocks;
-        int last;
-
-        if (i == nblocks)
-        {
-            last = nsample;
-        }
-        else
-        {
-            last = (i + 1) * nsample / nblocks;
-        }
-
-        for (int j = first; j < last; j++)
-        {
-            temp_block.at(i) += temp_all.at(j);
-            ke_block.at(i) += ke_all.at(j);
-            pe_block.at(i) += pe_all.at(j);
-        }
-
-        temp_block.at(i) /= (double) (last - first);
-        ke_block.at(i) /= (double) (last - first);
-        pe_block.at(i) /= (double) (last - first);
-    }
-
-    double temp_blockavg = 0.0;
-    double ke_blockavg = 0.0;
-    double pe_blockavg = 0.0;
-
-    for (int i = 0; i < nblocks; i++)
-    {
-        temp_blockavg += temp_block.at(i);
-        ke_blockavg += ke_block.at(i);
-        pe_blockavg += pe_block.at(i);
-    }
-
-    temp_blockavg /= nblocks;
-    pe_blockavg /= nblocks;
-    ke_blockavg /= nblocks;
-
-    double temp_stdev = 0.0;
-    double ke_stdev = 0.0;
-    double pe_stdev = 0.0;
-    for (int i = 0; i < nblocks; i++)
-    {
-        temp_stdev += pow(temp_block.at(i),2) - pow(temp_blockavg,2);
-        ke_stdev += pow(ke_block.at(i),2) - pow(ke_blockavg,2);
-        pe_stdev += pow(pe_block.at(i),2) - pow(pe_blockavg,2);
-    }
-
-    temp_stdev /= (nblocks-1);
-    ke_stdev /= (nblocks-1);
-    pe_stdev /= (nblocks-1);
-
-    temp_stdev = sqrt(temp_stdev);
-    pe_stdev = sqrt(pe_stdev);
-    ke_stdev = sqrt(ke_stdev);
-    // END: error analysis ------------------------
-
-    temp_avg /= (double) nsample;
-    ke_avg /= (double) nsample;
-    pe_avg /= (double) nsample;
-    entot_avg /= (double) nsample;
-
-    cout << "AVERAGES & CONSTANTS (" << nsample << " steps sampled out of " << nsteps << " total steps)" << endl;
-    cout << setw(20) << "Number: " << setw(14) << natoms << endl;
-    cout << setw(20) << "Density: " << setw(14) << rho << endl;
-    cout << setw(20) << "Volume: " << setw(14) << volume(box) << endl;
-    cout << setw(20) << "Temperature: " << setw(14) << temp_avg << " +/- " << setw(14) << temp_stdev << endl;
-    cout << setw(20) << "Kinetic Energy: " << setw(14) << ke_avg << " +/- " << setw(14) << ke_stdev << endl;
-    cout << setw(20) << "Potential Energy: " << setw(14) << pe_avg << " +/- " << setw(14) << pe_stdev << endl;
-    cout << setw(20) << "Total Energy: " << setw(14) << entot_avg << endl;
+    sys.ErrorAnalysis(nblocks);
+    sys.NormalizeAverages();
+    sys.PrintAverages();
 
     return 0;
-}
-
-int init(vector <coordinates> &x, vector <coordinates> &v, vector <coordinates> &xm, int natoms, triclinicbox box, double &temp, double dt, double mindist, double maxtries, double &ke, string pdbfile)
-{
-    // Draw from a uniform distribution centered at the origin
-    random_device rd;
-    mt19937 gen(rd());
-    uniform_real_distribution<double> disx(-box.at(X).at(X)/2.0,box.at(X).at(X)/2.0);
-    uniform_real_distribution<double> disy(-box.at(Y).at(Y)/2.0,box.at(Y).at(Y)/2.0);
-    uniform_real_distribution<double> disz(-box.at(Z).at(Z)/2.0,box.at(Z).at(Z)/2.0);
-    normal_distribution<double> dis_vel(0.0, sqrt(temp));
-    coordinates sumv(0.0, 0.0, 0.0);
-    double sumv2 = 0.0;
-    const double mindist2 = mindist*mindist;
-
-    // Generate random locations and velocities drawn from Gaussian distribution
-    cout << "Generating point initial configuration...";
-    
-    int i = 0;
-    while (i < natoms)
-    {
-
-retrypoint:
-
-        x.at(i).at(X) = disx(gen);
-        x.at(i).at(Y) = disy(gen);
-        x.at(i).at(Z) = disz(gen);
-
-        for (int j = 0; j < i; j++)
-        {
-
-            // Too close to to other points?
-            if (distance2(x.at(i), x.at(j), box) < mindist2)
-            {
-                if (i > maxtries)
-                {
-                    cout << "ERROR: Exceeded maximum number of tries in generating initial configuration." << endl;
-                    return -1;
-                }
-                goto retrypoint;
-            }
-
-        }
-
-        // Point accepted if we're here
-        
-        v.at(i).at(X) = dis_vel(gen);
-        v.at(i).at(Y) = dis_vel(gen);
-        v.at(i).at(Z) = dis_vel(gen);
-
-        sumv += v.at(i);
-        sumv2 += dot(v.at(i), v.at(i));
-
-        i++;
-
-    }
-
-    sumv /= natoms;
-    sumv2 /= natoms;
-    double fs = sqrt(3.0*temp/sumv2);
-
-    sumv2 = 0.0;
-    for (int i = 0; i < natoms; i++)
-    {
-        v.at(i) = (v.at(i) - sumv) * fs;
-        sumv2 += dot(v.at(i), v.at(i));
-    }
-    temp = sumv2 / (3.0 * natoms);
-    ke = 0.5 * sumv2 / natoms;
-
-    PdbFile pdb(pdbfile.c_str());
-    pdb.write_header(pdbfile, "LJ MD Simulator", "First frame");
-    for (int i = 0; i < natoms; i++)
-    {
-        pdb.write_line(i+1, "Ar", "LIG", 1, x.at(i), 1.00, 0.00);
-    }
-    pdb.close();
-
-    cout << "done." << endl << endl;
-
-    return 0;
-}
-
-void force(vector <coordinates> &f, double &en, vector <coordinates> &x, triclinicbox box, int natoms, double rcut2, double ecut, vector < vector <int> > &neighb_list)
-{
-
-    en = 0.0;
-    for (int i = 0; i < natoms; i++)
-    {
-        f.at(i) = 0.0;
-    }
-
-    #pragma omp parallel
-    {
-
-        vector <coordinates> f_thread(natoms);
-        double en_thread = 0.0;
-        for (int i = 0; i < natoms; i++)
-        {
-            f_thread.at(i) = 0.0;
-        }
-
-        // Uses neighbor lists to calculate forces and energies. We didn't
-        // double count the atoms on the neighbor list, so we have to look at
-        // each atom's list. The last atom never has it's own list since it will
-        // always be on at least one other atom's list (or it is too far away to
-        // interact with any other atom)
-        #pragma omp for schedule(guided, 15)
-        for (int i = 0; i < natoms-1; i++)
-        {
-
-            for (unsigned int neighb = 0; neighb < neighb_list.at(i).size(); neighb++)
-            {
-
-                int j = neighb_list.at(i).at(neighb);
-                coordinates dr = pbc(x.at(i) - x.at(j), box);
-                double r2 = dot(dr,dr);
-
-                if (r2 <= rcut2)
-                {
-
-                    double r2i = 1.0/r2;
-                    double r6i = pow(r2i,3);
-                    double ff = 48.0 * r2i * r6i * (r6i - 0.5);
-                    
-                    // We have to count the force both on atom i from j and on j
-                    // from i, since we didn't double count on the neighbor
-                    // lists
-                    f_thread.at(i) += ff * dr;
-                    f_thread.at(j) -= ff * dr;
-
-                    en_thread += 4.0*r6i*(r6i-1.0) - ecut;
-
-                }
-
-            }
-
-        }
-
-        #pragma omp critical
-        {
-
-            for (int i = 0; i < natoms; i++)
-            {
-                f.at(i) += f_thread.at(i);
-                en += en_thread;
-            }
-
-        }
-
-    }
-
-    en /= (natoms * natoms);
-
-    return;
-
-}
-
-// Velocity Verlet integrator in two parts
-void integrate(int a, vector <coordinates> &x, vector <coordinates> &v, vector <coordinates> &f, int natoms, double dt, double &temp, double &ke, bool tcoupl, double reft, double coll_freq)
-{
-
-    if (a == 0) 
-    {
-        #pragma omp for schedule(guided, 15)
-        for (int i = 0; i < natoms; i++)
-        {
-            x.at(i) = x.at(i) + v.at(i)*dt + 0.5*f.at(i)*dt*dt;
-            v.at(i) = v.at(i) + 0.5*f.at(i)*dt;
-        }
-    }
-    else if (a == 1)
-    {
-
-        double sumv2 = 0.0;
-
-        // Andersen thermostat. If enabled, each particle is tested to see if it
-        // collides with the temperature bath. If it does, it is assigned a
-        // velocity drawn from a Gaussian distribution.
-        if (tcoupl == true)
-        {
-            double sigma = sqrt(reft);
-
-            #pragma omp parallel
-            {
-                random_device rd;
-                mt19937 gen(rd());
-                uniform_real_distribution<double> dis(0.0, 1.0);
-                normal_distribution<double> ndis(0.0, sigma);
-                double sumv2_thread = 0.0;
-
-                #pragma omp for schedule(guided, 15)
-                for (int i = 0; i < natoms; i++)
-                {
-
-                    v.at(i) = v.at(i) + 0.5*f.at(i)*dt;
-                    sumv2_thread += dot(v.at(i), v.at(i));
-
-                    if (dis(gen) < coll_freq*dt)
-                    {
-                        v.at(i).at(X) = ndis(gen);
-                        v.at(i).at(Y) = ndis(gen);
-                        v.at(i).at(Z) = ndis(gen);
-                    }
-                }
-                
-                #pragma omp critical
-                {
-                    sumv2 += sumv2_thread;
-                }
-
-            }
-
-        }
-        else
-        {
-            #pragma omp parallel
-            {
-                double sumv2_thread = 0.0;
-
-                #pragma omp for schedule(guided, 15)
-                for (int i = 0; i < natoms; i++)
-                {
-                    v.at(i) = v.at(i) + 0.5*f.at(i)*dt;
-                    sumv2_thread += dot(v.at(i), v.at(i));
-                }
-
-                #pragma omp critical
-                {
-                    sumv2 += sumv2_thread;
-                }
-
-            }
-
-        }
-
-        temp = sumv2 / (3.0 * natoms);
-        ke = 0.5 * sumv2 / natoms;
-
-    }
-
-    return;
-}
-
-void write_frame(XDRFILE *xd, vector <coordinates> x, triclinicbox &box, int step, double dt)
-{
-    rvec *x_xtc;
-    matrix box_xtc;
-
-    // Convert to "nanometer" (even though we are in reduced units)
-    box_xtc[0][0] = box.at(0).at(0)/10.0;
-    box_xtc[0][1] = box.at(0).at(1)/10.0;
-    box_xtc[0][2] = box.at(0).at(2)/10.0;
-    box_xtc[1][0] = box.at(1).at(0)/10.0;
-    box_xtc[1][1] = box.at(1).at(1)/10.0;
-    box_xtc[1][2] = box.at(1).at(2)/10.0;
-    box_xtc[2][0] = box.at(2).at(0)/10.0;
-    box_xtc[2][1] = box.at(2).at(1)/10.0;
-    box_xtc[2][2] = box.at(2).at(2)/10.0;
-
-    x_xtc = new rvec[x.size()];
-    #pragma omp for
-    for (unsigned int i = 0; i < x.size(); i++)
-    {
-
-        // Shift all the points to the center of the box
-        x.at(i) = pbc(x.at(i), box);
-        x.at(i).at(X) += box.at(X).at(X)/2.0;
-        x.at(i).at(Y) += box.at(Y).at(Y)/2.0;
-        x.at(i).at(Z) += box.at(Z).at(Z)/2.0;
-
-        // Convert to "nanometers"
-        x_xtc[i][X] = x.at(i).at(X)/10.0;
-        x_xtc[i][Y] = x.at(i).at(Y)/10.0;
-        x_xtc[i][Z] = x.at(i).at(Z)/10.0;
-
-    }
-
-    write_xtc(xd, x.size(), step, dt*step, box_xtc, x_xtc, 1000);
-
-    return;
-}
-
-void update_neighb_list(vector < vector <int> > &neighb_list, vector <coordinates> &x, triclinicbox &box, double rlist2)
-{
-    
-    for (unsigned int i = 0; i < neighb_list.size(); i++)
-    {
-        neighb_list.at(i).resize(0);
-    }
-
-    // Atoms are not double counted in the neighbor list. That is, when atom j
-    // is on atom i's list, the opposite is not true.
-    for (unsigned int i = 0; i < x.size()-1; i++)
-    {
-        for (unsigned int j = i+1; j < x.size(); j++)
-        {
-            if (distance2(x.at(i), x.at(j), box) < rlist2)
-            {
-                neighb_list.at(i).push_back(j);
-            }
-
-        }
-    }
-
-    return;
 }

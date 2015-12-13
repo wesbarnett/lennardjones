@@ -22,6 +22,8 @@
 
 #include "Velocity.h"
 
+Velocity::Velocity() { }
+
 Velocity::Velocity(int nbins, double max, double min, string outfile)
 {
     this->max = max;

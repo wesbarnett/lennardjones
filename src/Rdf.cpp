@@ -23,6 +23,8 @@
 
 #include "Rdf.h"
 
+Rdf::Rdf() { }
+
 Rdf::Rdf(int nbins, triclinicbox &box, string outfile)
 {
     this->nbins = nbins;
