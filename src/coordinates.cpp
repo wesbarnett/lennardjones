@@ -1,5 +1,4 @@
 /*
- * libgmxcpp
  * Copyright (C) 2015 James W. Barnett <jbarnet4@tulane.edu>
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -18,14 +17,6 @@
  * The full license is located in a text file titled "LICENSE" in the root
  * directory of the source.
  *
- */
-
-/**
- * @file
- * @author James W. Barnett jbarnet4@tulane.edu
- * @date December 5, 2014
- * @brief Header for coordinates class
- * @see coordinates.h
  */
 
 #include "coordinates.h"

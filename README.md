@@ -5,7 +5,7 @@
 ## About
 
 This program simulates "Lennard-Jonseium". It's mainly a tool for learning and
-study. Use at your own risk. See `LICENSE` for more details.
+study. Use at your own risk.
 
 The program is written in C++ and requires [Boost](http://www.boost.org/)
 libraries and development headers for reading the .ini file, and xdrfile for
@@ -48,6 +48,26 @@ then simulation begins.
 Check out `md.ini` for some of the options in running the simulation. When you
 run the program all of the options are printed to the screen, including ones you
 did not specify in the .ini file (with their default values).
+
+## License
+
+Copyright (C) 2015 James W. Barnett <jbarnet4@tulane.edu>
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 51
+Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+The full license is located in a text file titled "LICENSE" in the root
+directory of the source.
 
 ## Resources
 
