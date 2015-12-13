@@ -11,25 +11,24 @@
  *
  */
 
-#include "omp.h"
-
 #include "coordinates.h"
+#include "PdbFile.h"
 #include "Rdf.h"
 #include "triclinicbox.h"
-#include "PdbFile.h"
 #include "utils.h"
 #include "Velocity.h"
-
-#include <xdrfile/xdrfile.h>
-#include <xdrfile/xdrfile_xtc.h>
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 
+#include <xdrfile/xdrfile.h>
+#include <xdrfile/xdrfile_xtc.h>
+
 #include <iostream>
+#include "omp.h"
 #include <random>
-#include <vector>
 #include <string>
+#include <vector>
 
 using namespace std;
 
@@ -52,6 +51,7 @@ int main(int argc, char *argv[])
 
     cout << "Reading from " << argv[1] << "..." << endl;
 
+    // BEGIN: Read ini file --------------------------
     boost::property_tree::ptree pt;
     boost::property_tree::ini_parser::read_ini(argv[1], pt);
 
@@ -138,6 +138,7 @@ int main(int argc, char *argv[])
         cout << "ERROR: 'system.rho' needs to be a real number." << endl;
         return -1;
     }
+    // Note: not a constant
     double temp = strtod(pt.get<std::string>("system.inittemp","1.0").c_str(), &endptr); 
     cout << "inittemp = " << temp << endl;
     if (*endptr != ' ' && *endptr != 0)
@@ -276,6 +277,9 @@ int main(int argc, char *argv[])
     }
 
     cout << endl;
+    // END: Read ini file -------------------------
+    
+    // Checking OMP settings and notifying user
     if (threads_n != -1)
     {
         cout << "Number of OpenMP threads set by user." << endl;
@@ -291,22 +295,23 @@ int main(int argc, char *argv[])
     }
     cout << endl;
 
+    // Calculate box dimensions based on density and number of atoms.
     double box_side = pow(natoms/rho,1.0/3.0);
     triclinicbox box(box_side, box_side, box_side);
     cout << "Box is " << box_side << " in each dimension." << endl << endl;
 
-    const double ecut = 4.0 * (1.0/pow(rcut,12) - 1.0/pow(rcut,6));
+    // Constants based on rcut
     const double rcut2 = rcut*rcut;
+    const double ecut = 4.0 * (1.0/pow(rcut,12) - 1.0/pow(rcut,6));
 
+    // Initialize variables
     double en = 0.0;
     double entot_avg = 0.0;
     double ke = 0.0;
     double ke_avg = 0.0;
     double pe_avg = 0.0;
     double temp_avg = 0.0;
-
     int nsample = 0;
-
     vector <coordinates> x(natoms);
     vector <coordinates> xm(natoms);
     vector <coordinates> v(natoms);
@@ -315,18 +320,16 @@ int main(int argc, char *argv[])
     vector <double> ke_all;
     vector <double> temp_all;
     vector < vector <int> > neighb_list(natoms);
-
+    Rdf rdf(rdf_nbins, box, rdf_outfile);
+    Velocity vel(v_nbins, v_max, v_min, v_outfile);
     XDRFILE *xd;
-    xd = xdrfile_open(xtcfile.c_str(), "w");
 
+    // Initialize system, create first neighbor list, calculate forces for
+    // logging. This is step "0"
     if (init(x, v, xm, natoms, box, temp, dt, mindist, maxtries, ke, pdbfile) != 0)
     {
         return -1;
     }
-    
-    Rdf rdf(rdf_nbins, box, rdf_outfile);
-    Velocity vel(v_nbins, v_max, v_min, v_outfile);
-
     update_neighb_list(neighb_list, x, box, rlist2);
     force(f, en, x, box, natoms, rcut2, ecut, neighb_list);
 
@@ -336,7 +339,6 @@ int main(int argc, char *argv[])
     cout << setw(14) << "KE";
     cout << setw(14) << "PE";
     cout << setw(14) << "Tot. En." << endl;
-
     cout << setw(14) << 0;
     cout << setw(14) << 0;
     cout << setw(14) << temp;
@@ -344,28 +346,36 @@ int main(int argc, char *argv[])
     cout << setw(14) << en;
     cout << setw(14) << en+ke << endl;
 
+    xd = xdrfile_open(xtcfile.c_str(), "w");
+
+    // BEGIN: Main loop ======================
     for (int step = 1; step < nsteps; step++)
     {
 
+        // Main part of algorithm
         integrate(0, x, v, f, natoms, dt, temp, ke, tcoupl, reft, coll_freq);
         force(f, en, x, box, natoms, rcut2, ecut, neighb_list);
         integrate(1, x, v, f, natoms, dt, temp, ke, tcoupl, reft, coll_freq);
 
+        // Update the neighbor list this step?
         if (step % nlist == 0)
         {
             update_neighb_list(neighb_list, x, box, rlist2);
         }
 
+        // Sample the RDF this step?
         if (( dordf == true) && (step % rdf_freq == 0) && (step > eql_steps))
         {
             rdf.sample(x, box);
         }
 
+        // Sample the velocity distribution this step?
         if (( dovel == true) && (step % v_freq == 0) && (step > eql_steps))
         {
             vel.sample(v);
         }
 
+        // Do other sampling this step?
         if ( (step % step_sample) == 0 && (step > eql_steps) )
         {
             nsample++;
@@ -378,6 +388,7 @@ int main(int argc, char *argv[])
             entot_avg += ke + en;
         }
 
+        // Print to the log this step?
         if (step % nlog == 0)
         {
             cout << setw(14) << step;
@@ -387,12 +398,16 @@ int main(int argc, char *argv[])
             cout << setw(14) << en;
             cout << setw(14) << en+ke << endl;
         }
+
+        // Write to the xtc file this step?
         if (step % nxtc == 0)
         {
             write_frame(xd, x, box, step, dt);
         }
 
     }
+    // END: main loop ===========================
+
     xdrfile_close(xd);
 
     if (dordf == true)
@@ -407,6 +422,7 @@ int main(int argc, char *argv[])
         vel.output();
     }
 
+    // BEGIN: error analysis --------------------
     vector <double> temp_block(nblocks);
     vector <double> pe_block(nblocks);
     vector <double> ke_block(nblocks);
@@ -469,12 +485,12 @@ int main(int argc, char *argv[])
     temp_stdev = sqrt(temp_stdev);
     pe_stdev = sqrt(pe_stdev);
     ke_stdev = sqrt(ke_stdev);
+    // END: error analysis ------------------------
 
     temp_avg /= (double) nsample;
     ke_avg /= (double) nsample;
     pe_avg /= (double) nsample;
     entot_avg /= (double) nsample;
-
 
     cout << "AVERAGES & CONSTANTS (" << nsample << " steps sampled out of " << nsteps << " total steps)" << endl;
     cout << setw(20) << "Number: " << setw(14) << natoms << endl;
@@ -490,6 +506,7 @@ int main(int argc, char *argv[])
 
 int init(vector <coordinates> &x, vector <coordinates> &v, vector <coordinates> &xm, int natoms, triclinicbox box, double &temp, double dt, double mindist, double maxtries, double &ke, string pdbfile)
 {
+    // Draw from a uniform distribution centered at the origin
     random_device rd;
     mt19937 gen(rd());
     uniform_real_distribution<double> disx(-box.at(X).at(X)/2.0,box.at(X).at(X)/2.0);
@@ -502,9 +519,8 @@ int init(vector <coordinates> &x, vector <coordinates> &v, vector <coordinates> 
 
     // Generate random locations and velocities drawn from Gaussian distribution
     cout << "Generating point initial configuration...";
-
+    
     int i = 0;
-     
     while (i < natoms)
     {
 
@@ -517,6 +533,7 @@ retrypoint:
         for (int j = 0; j < i; j++)
         {
 
+            // Too close to to other points?
             if (distance2(x.at(i), x.at(j), box) < mindist2)
             {
                 if (i > maxtries)
@@ -529,6 +546,8 @@ retrypoint:
 
         }
 
+        // Point accepted if we're here
+        
         v.at(i).at(X) = dis_vel(gen);
         v.at(i).at(Y) = dis_vel(gen);
         v.at(i).at(Z) = dis_vel(gen);
@@ -585,38 +604,54 @@ void force(vector <coordinates> &f, double &en, vector <coordinates> &x, triclin
             f_thread.at(i) = 0.0;
         }
 
+        // Uses neighbor lists to calculate forces and energies. We didn't
+        // double count the atoms on the neighbor list, so we have to look at
+        // each atom's list. The last atom never has it's own list since it will
+        // always be on at least one other atom's list (or it is too far away to
+        // interact with any other atom)
         #pragma omp for schedule(guided, 15)
-        for (int i = 0; i < natoms; i++)
+        for (int i = 0; i < natoms-1; i++)
         {
 
-            if (neighb_list.at(i).size() > 0)
+            for (unsigned int neighb = 0; neighb < neighb_list.at(i).size(); neighb++)
             {
-                for (unsigned int j = 0; j < neighb_list.at(i).size(); j++)
+
+                int j = neighb_list.at(i).at(neighb);
+                coordinates dr = pbc(x.at(i) - x.at(j), box);
+                double r2 = dot(dr,dr);
+
+                if (r2 <= rcut2)
                 {
 
-                    coordinates dr = pbc(x.at(i) - x.at(neighb_list.at(i).at(j)), box);
-                    double r2 = dot(dr,dr);
-                    if (r2 <= rcut2)
-                    {
-                        double r2i = 1.0/r2;
-                        double r6i = pow(r2i,3);
-                        double ff = 48.0 * r2i * r6i * (r6i - 0.5);
-                        f_thread.at(i) += ff * dr;
-                        f_thread.at(neighb_list.at(i).at(j)) -= ff * dr;
-                        en_thread += 4.0*r6i*(r6i-1.0) - ecut;
-                    }
+                    double r2i = 1.0/r2;
+                    double r6i = pow(r2i,3);
+                    double ff = 48.0 * r2i * r6i * (r6i - 0.5);
+                    
+                    // We have to count the force both on atom i from j and on j
+                    // from i, since we didn't double count on the neighbor
+                    // lists
+                    f_thread.at(i) += ff * dr;
+                    f_thread.at(j) -= ff * dr;
+
+                    en_thread += 4.0*r6i*(r6i-1.0) - ecut;
 
                 }
+
             }
 
         }
 
         #pragma omp critical
-        for (int i = 0; i < natoms; i++)
         {
-            f.at(i) += f_thread.at(i);
-            en += en_thread;
+
+            for (int i = 0; i < natoms; i++)
+            {
+                f.at(i) += f_thread.at(i);
+                en += en_thread;
+            }
+
         }
+
     }
 
     en /= (natoms * natoms);
@@ -715,6 +750,8 @@ void write_frame(XDRFILE *xd, vector <coordinates> x, triclinicbox &box, int ste
 {
     rvec *x_xtc;
     matrix box_xtc;
+
+    // Convert to "nanometer" (even though we are in reduced units)
     box_xtc[0][0] = box.at(0).at(0)/10.0;
     box_xtc[0][1] = box.at(0).at(1)/10.0;
     box_xtc[0][2] = box.at(0).at(2)/10.0;
@@ -724,18 +761,23 @@ void write_frame(XDRFILE *xd, vector <coordinates> x, triclinicbox &box, int ste
     box_xtc[2][0] = box.at(2).at(0)/10.0;
     box_xtc[2][1] = box.at(2).at(1)/10.0;
     box_xtc[2][2] = box.at(2).at(2)/10.0;
-    x_xtc = new rvec[x.size()];
 
+    x_xtc = new rvec[x.size()];
     #pragma omp for
     for (unsigned int i = 0; i < x.size(); i++)
     {
+
+        // Shift all the points to the center of the box
         x.at(i) = pbc(x.at(i), box);
         x.at(i).at(X) += box.at(X).at(X)/2.0;
         x.at(i).at(Y) += box.at(Y).at(Y)/2.0;
         x.at(i).at(Z) += box.at(Z).at(Z)/2.0;
+
+        // Convert to "nanometers"
         x_xtc[i][X] = x.at(i).at(X)/10.0;
         x_xtc[i][Y] = x.at(i).at(Y)/10.0;
         x_xtc[i][Z] = x.at(i).at(Z)/10.0;
+
     }
 
     write_xtc(xd, x.size(), step, dt*step, box_xtc, x_xtc, 1000);
@@ -751,6 +793,8 @@ void update_neighb_list(vector < vector <int> > &neighb_list, vector <coordinate
         neighb_list.at(i).resize(0);
     }
 
+    // Atoms are not double counted in the neighbor list. That is, when atom j
+    // is on atom i's list, the opposite is not true.
     for (unsigned int i = 0; i < x.size()-1; i++)
     {
         for (unsigned int j = i+1; j < x.size(); j++)
