@@ -4,8 +4,7 @@
 
 ## About
 
-This program simulates "Lennard-Jonseium". It's mainly a tool for learning and
-study. Use at your own risk.
+Simulates Lennard Jonesium using Molecular Dynamics.
 
 The program is written in C++ and requires [Boost](http://www.boost.org/)
 libraries and development headers for reading the .ini file, and xdrfile for
@@ -16,6 +15,7 @@ Current features:
 
 * NVE
 * NVT (with Andersen)
+* Velocity Verlet integrator
 * Calculate RDF
 * Calculate velocity distribution
 * Block error analysis (only on temperature, KE, and PE currently)
