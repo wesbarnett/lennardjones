@@ -24,7 +24,11 @@
 #ifndef PDBFILE_H
 #define PDBFILE_H
 
+#include <fstream>
+#include <iomanip>
+#include <iostream>
 #include <string>
+#include <vector>
 using namespace std;
 
 class PdbFile {

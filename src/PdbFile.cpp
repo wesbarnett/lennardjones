@@ -60,9 +60,9 @@ void PdbFile::write_line(int atom_no, string atom_name, string res, int res_no, 
     oFS << setw(4) << right << res;
     oFS << setw(6) << right << res_no;
     oFS << setprecision(3);
-    oFS << setw(12) << right << xyz.at(X);
-    oFS << setw(8) << right << xyz.at(Y);
-    oFS << setw(8) << right << xyz.at(Z);
+    oFS << setw(12) << right << xyz.at(0);
+    oFS << setw(8) << right << xyz.at(1);
+    oFS << setw(8) << right << xyz.at(2);
     oFS << setw(6) << right << occupancy;
     oFS << setprecision(2);
     oFS << setw(6) << beta;
