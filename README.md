@@ -29,6 +29,9 @@ To compile simply do:
 
     make
 
+You may have to modify `Makefile` if you have libraries installed in a custom
+location.
+
 ## Running
 
 To run do:
