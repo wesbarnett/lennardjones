@@ -67,7 +67,6 @@ class System {
         double temp;
         double vol;
         int natoms;
-        int natoms2;
         int nsample;
         int nsteps;
         NeighborList nlist;
@@ -117,7 +116,6 @@ System::System(int natoms, int nsteps, double rho, double rcut, double rlist, do
     this->halfdt2 = 0.5*dt*dt;
 
     this->natoms = natoms;
-    this->natoms2 = natoms*natoms;
     this->i2natoms = 1.0/(2.0*(double)natoms);
     this->i3natoms = 1.0/(3.0*(double)natoms);
 
@@ -295,9 +293,8 @@ void System::CalcForce()
 
     }
 
-    ncut /= (natoms-1);
-    this->pe = pe/this->natoms2;
-    this->pe += etail + 0.5*ecut*(double)ncut; 
+    ncut /= (this->natoms-1);
+    this->pe = pe/this->natoms + this->etail + 0.5*ecut*(double)ncut; 
 
     double vir = 0.0;
     #pragma omp parallel for schedule(guided, CHUNKSIZE) reduction(+:vir)
