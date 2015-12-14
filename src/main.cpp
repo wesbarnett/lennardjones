@@ -513,19 +513,32 @@ void System::NormalizeAverages()
 int main(int argc, char *argv[])
 {
 
+    const string defaultfilename = "md.ini";
+    string inifile;
+
     if (argc != 2)
     {
-        cout << "ERROR: Configuration file should be first command line argument." << endl;
-        return -1;
+        cerr << "No configuration file specified. Using default filename '" << defaultfilename << "'." << endl;
+        inifile = defaultfilename;
+    }
+    else
+    {
+        inifile = argv[1];
     }
 
-    cout << setprecision(6) << fixed;
+    cout << "Reading from " << inifile << "..." << endl;
 
-    cout << "Reading from " << argv[1] << "..." << endl;
-
-    // BEGIN: Read ini file --------------------------
     boost::property_tree::ptree pt;
-    boost::property_tree::ini_parser::read_ini(argv[1], pt);
+
+    try 
+    {
+        boost::property_tree::ini_parser::read_ini(inifile, pt);
+    }
+    catch( std::exception &ex )
+    {
+        cerr << ex.what() << endl;
+        cerr << "Using default settings for all options." << endl;
+    }
 
     char *endptr;
 
@@ -736,13 +749,14 @@ int main(int argc, char *argv[])
     }
 
     cout << endl;
-    // END: Read ini file -------------------------
     
     #pragma omp parallel
     #pragma omp master
     cout << "Using " << omp_get_num_threads() << " OpenMP threads." << endl;
 
     cout << endl;
+
+    cout << setprecision(6) << fixed;
 
     System sys(natoms, nsteps, rho, rcut, rlist, temp, dt, mindist, maxtries, pdbfile, reft, coll_freq, xtcfile, rdf_nbins, rdf_outfile, v_nbins, v_max, v_min, v_outfile);
     sys.UpdateNeighborList();
