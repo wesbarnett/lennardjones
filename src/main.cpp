@@ -254,13 +254,13 @@ void System::CalcForce()
 
                     double r2i = 1.0/r2;
                     double r6i = pow(r2i,3);
-                    double ff = 48.0 * r2i * r6i * (r6i - 0.5);
+                    coordinates ff = 48.0 * r2i * r6i * (r6i - 0.5) * dr;
                     
                     // We have to count the force both on atom i from j and on j
                     // from i, since we didn't double count on the neighbor
                     // lists
-                    f_thread.at(i) += ff * dr;
-                    f_thread.at(j) -= ff * dr;
+                    f_thread.at(i) += ff;
+                    f_thread.at(j) -= ff;
 
                     pe_thread += 4.0*r6i*(r6i-1.0) - this->ecut;
 
