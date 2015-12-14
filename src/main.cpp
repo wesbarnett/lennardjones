@@ -394,7 +394,7 @@ void System::PrintAverages()
     cout << setw(20) << "Density: " << setw(14) << this->rho << endl;
     cout << setw(20) << "Volume: " << setw(14) << volume(this->box) << endl;
     cout << setw(20) << "Temperature: " << setw(14) << this->Temperature.GetAvg() << " +/- " << setw(14) << this->Temperature.GetError() << endl;
-    cout << setw(20) << "Pressure: " << setw(14) << this->Temperature.GetAvg() << " +/- " << setw(14) << this->Pressure.GetError() << endl;
+    cout << setw(20) << "Pressure: " << setw(14) << this->Pressure.GetAvg() << " +/- " << setw(14) << this->Pressure.GetError() << endl;
     cout << setw(20) << "Kinetic Energy: " << setw(14) << this->KineticEnergy.GetAvg() << " +/- " << setw(14) << this->KineticEnergy.GetError() << endl;
     cout << setw(20) << "Potential Energy: " << setw(14) << this->PotentialEnergy.GetAvg() << " +/- " << setw(14) << this->PotentialEnergy.GetError() << endl;
     cout << setw(20) << "Total Energy: " << setw(14) << this->TotalEnergy.GetAvg() << " +/- " << setw(14) << this->TotalEnergy.GetError() << endl;
