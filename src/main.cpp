@@ -229,6 +229,7 @@ void System::CalcForce()
 
     int ncut = 0;
     double pe = 0.0;
+    double vir = 0.0;
     for (int i = 0; i < this->natoms; i++)
     {
         this->f.at(i) = 0.0;
@@ -248,7 +249,7 @@ void System::CalcForce()
         // each atom's list. The last atom never has it's own list since it will
         // always be on at least one other atom's list (or it is too far away to
         // interact with any other atom)
-        #pragma omp for schedule(guided, CHUNKSIZE) reduction(+:ncut,pe)
+        #pragma omp for schedule(guided, CHUNKSIZE) reduction(+:ncut,pe,vir)
         for (int i = 0; i < this->natoms-1; i++)
         {
 
@@ -293,16 +294,15 @@ void System::CalcForce()
 
     }
 
-    ncut /= (this->natoms-1);
-    this->pe = pe/this->natoms + this->etail + 0.5*ecut*(double)ncut; 
-
-    double vir = 0.0;
     #pragma omp parallel for schedule(guided, CHUNKSIZE) reduction(+:vir)
-    for (int i = 0; i < this->natoms; i++)
+    for (int i = 0; i < natoms; i++)
     {
         vir += dot(f.at(i), x.at(i));
     }
-    vir /= 3.0;
+
+    ncut /= (this->natoms-1);
+    this->pe = pe/this->natoms + this->etail + 0.5*ecut*(double)ncut; 
+    vir /= 6.0;
 
     this->press = this->rho*kB*this->temp + vir/this->vol + this->ptail;
 
