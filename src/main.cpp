@@ -46,20 +46,26 @@
 
 using namespace std;
 
+const double kB = 1.3806485279; // J / K
+
 class System {
     private:
         double dt;
         double ecut;
         double entot;
+        double etail;
         double halfdt;
         double halfdt2;
         double i2natoms;
         double i3natoms;
         double ke;
         double pe;
+        double press;
+        double ptail;
         double rcut2;
         double rho;
         double temp;
+        double vol;
         int natoms;
         int natoms2;
         int nsample;
@@ -69,6 +75,7 @@ class System {
         triclinicbox box;
         ThermodynamicVariable KineticEnergy;
         ThermodynamicVariable PotentialEnergy;
+        ThermodynamicVariable Pressure;
         ThermodynamicVariable Temperature;
         ThermodynamicVariable TotalEnergy;
         Thermostat tstat;
@@ -116,6 +123,8 @@ System::System(int natoms, int nsteps, double rho, double rcut, double rlist, do
 
     this->rcut2 = rcut*rcut;
     this->ecut = 4.0 * (1.0/pow(rcut,12) - 1.0/pow(rcut,6));
+    this->etail = 8.0/3.0 * M_PI * rho * (1.0/(3.0*pow(rcut,9)) - 1.0/pow(rcut,3));
+    this->ptail = 16.0/3.0 * M_PI * rho*rho * (2.0/3.0*1.0/pow(rcut,9) - 1.0/pow(rcut,3));
 
     this->nsample = 0;
     this->rho = rho;
@@ -135,6 +144,7 @@ System::System(int natoms, int nsteps, double rho, double rcut, double rlist, do
     this->box.at(Z).at(Y) = 0.0;
     cout << "Box is " << box_side << " in each dimension." << endl << endl;
 
+    this->vol = volume(box);
     this->nlist = NeighborList(natoms, rlist);
     this->rdf = Rdf(rdf_nbins, box, rdf_outfile);
     this->tstat = Thermostat(reft, coll_freq, dt);
@@ -219,6 +229,7 @@ retrypoint:
 void System::CalcForce()
 {
 
+    int ncut = 0;
     this->pe = 0.0;
     for (int i = 0; i < this->natoms; i++)
     {
@@ -240,7 +251,7 @@ void System::CalcForce()
         // each atom's list. The last atom never has it's own list since it will
         // always be on at least one other atom's list (or it is too far away to
         // interact with any other atom)
-        #pragma omp for schedule(guided, CHUNKSIZE)
+        #pragma omp for schedule(guided, CHUNKSIZE) reduction(+:ncut)
         for (int i = 0; i < this->natoms-1; i++)
         {
 
@@ -256,15 +267,16 @@ void System::CalcForce()
 
                     double r2i = 1.0/r2;
                     double r6i = pow(r2i,3);
-                    coordinates ff = 48.0 * r2i * r6i * (r6i - 0.5) * dr;
+                    coordinates fr = 48.0 * r2i * r6i * (r6i - 0.5) * dr;
                     
                     // We have to count the force both on atom i from j and on j
                     // from i, since we didn't double count on the neighbor
                     // lists
-                    f_thread.at(i) += ff;
-                    f_thread.at(j) -= ff;
+                    f_thread.at(i) += fr;
+                    f_thread.at(j) -= fr;
 
                     pe_thread += 4.0*r6i*(r6i-1.0) - this->ecut;
+                    ncut++;
 
                 }
 
@@ -285,7 +297,19 @@ void System::CalcForce()
 
     }
 
+    ncut /= (natoms-1);
     this->pe /= this->natoms2;
+    this->pe += etail + 0.5*ecut*(double)ncut; 
+
+    double vir = 0.0;
+    #pragma omp parallel for schedule(guided, CHUNKSIZE) reduction(+:vir)
+    for (int i = 0; i < this->natoms; i++)
+    {
+        vir += dot(f.at(i), x.at(i));
+    }
+    vir /= 3.0;
+
+    this->press = this->rho*kB*this->temp + vir/this->vol + this->ptail;
 
     return;
 
@@ -334,6 +358,7 @@ void System::Print(int step)
     cout << setw(14) << step;
     cout << setw(14) << step*this->dt;
     cout << setw(14) << this->temp;
+    cout << setw(14) << this->press;
     cout << setw(14) << this->ke;
     cout << setw(14) << this->pe;
     cout << setw(14) << this->pe+this->ke << endl;
@@ -345,6 +370,7 @@ void System::PrintHeader()
     cout << setw(14) << "Step";
     cout << setw(14) << "Time";
     cout << setw(14) << "Temp";
+    cout << setw(14) << "Press";
     cout << setw(14) << "KE";
     cout << setw(14) << "PE";
     cout << setw(14) << "Tot. En." << endl;
@@ -358,6 +384,7 @@ void System::PrintAverages()
     cout << setw(20) << "Density: " << setw(14) << this->rho << endl;
     cout << setw(20) << "Volume: " << setw(14) << volume(this->box) << endl;
     cout << setw(20) << "Temperature: " << setw(14) << this->Temperature.GetAvg() << " +/- " << setw(14) << this->Temperature.GetError() << endl;
+    cout << setw(20) << "Pressure: " << setw(14) << this->Temperature.GetAvg() << " +/- " << setw(14) << this->Pressure.GetError() << endl;
     cout << setw(20) << "Kinetic Energy: " << setw(14) << this->KineticEnergy.GetAvg() << " +/- " << setw(14) << this->KineticEnergy.GetError() << endl;
     cout << setw(20) << "Potential Energy: " << setw(14) << this->PotentialEnergy.GetAvg() << " +/- " << setw(14) << this->PotentialEnergy.GetError() << endl;
     cout << setw(20) << "Total Energy: " << setw(14) << this->TotalEnergy.GetAvg() << " +/- " << setw(14) << this->TotalEnergy.GetError() << endl;
@@ -409,6 +436,7 @@ void System::OutputVel()
 void System::Sample()
 {
     this->Temperature.Sample(this->temp);
+    this->Pressure.Sample(this->press);
     this->KineticEnergy.Sample(this->ke);
     this->PotentialEnergy.Sample(this->pe);
     this->TotalEnergy.Sample(this->ke+this->pe);
@@ -465,6 +493,7 @@ void System::ErrorAnalysis(int nblocks)
     this->KineticEnergy.ErrorAnalysis(nblocks);
     this->PotentialEnergy.ErrorAnalysis(nblocks);
     this->Temperature.ErrorAnalysis(nblocks);
+    this->Pressure.ErrorAnalysis(nblocks);
     this->TotalEnergy.ErrorAnalysis(nblocks);
     return;
 }
@@ -474,6 +503,7 @@ void System::NormalizeAverages()
     this->KineticEnergy.Normalize();
     this->PotentialEnergy.Normalize();
     this->Temperature.Normalize();
+    this->Pressure.Normalize();
     this->TotalEnergy.Normalize();
     return;
 }
