@@ -46,7 +46,8 @@
 
 using namespace std;
 
-const double kB = 1.3806485279; // J / K
+const double kB = 1.3806485279; // Boltzmann's Constant (J / K)
+const double oneSixth = 1.0/6.0;
 
 class System {
     private:
@@ -56,6 +57,8 @@ class System {
         double etail;
         double halfdt;
         double halfdt2;
+        double halfecut;
+        double inatomsm1;
         double i2natoms;
         double i3natoms;
         double ke;
@@ -64,6 +67,7 @@ class System {
         double ptail;
         double rcut2;
         double rho;
+        double rhokB;
         double temp;
         double vol;
         int natoms;
@@ -116,11 +120,13 @@ System::System(int natoms, int nsteps, double rho, double rcut, double rlist, do
     this->halfdt2 = 0.5*dt*dt;
 
     this->natoms = natoms;
+    this->inatomsm1 = 1.0/(natoms - 1);
     this->i2natoms = 1.0/(2.0*(double)natoms);
     this->i3natoms = 1.0/(3.0*(double)natoms);
 
     this->rcut2 = rcut*rcut;
     this->ecut = 4.0 * (1.0/pow(rcut,12) - 1.0/pow(rcut,6));
+    this->halfecut = ecut/2.0;
     this->etail = 8.0/3.0 * M_PI * rho * (1.0/(3.0*pow(rcut,9)) - 1.0/pow(rcut,3));
     this->ptail = 16.0/3.0 * M_PI * rho*rho * (2.0/3.0*1.0/pow(rcut,9) - 1.0/pow(rcut,3));
 
@@ -128,6 +134,7 @@ System::System(int natoms, int nsteps, double rho, double rcut, double rlist, do
     this->rho = rho;
     this->nsteps = nsteps;
     this->xd = xdrfile_open(xtcfile.c_str(), "w");
+    this->rhokB = rho*kB;
 
     // Calculate box dimensions based on density and number of atoms.
     double box_side = pow(natoms/rho,1.0/3.0);
@@ -229,7 +236,6 @@ void System::CalcForce()
 
     int ncut = 0;
     double pe = 0.0;
-    double vir = 0.0;
     for (int i = 0; i < this->natoms; i++)
     {
         this->f.at(i) = 0.0;
@@ -249,7 +255,7 @@ void System::CalcForce()
         // each atom's list. The last atom never has it's own list since it will
         // always be on at least one other atom's list (or it is too far away to
         // interact with any other atom)
-        #pragma omp for schedule(guided, CHUNKSIZE) reduction(+:ncut,pe,vir)
+        #pragma omp for schedule(guided, CHUNKSIZE) reduction(+:ncut,pe)
         for (int i = 0; i < this->natoms-1; i++)
         {
 
@@ -294,17 +300,17 @@ void System::CalcForce()
 
     }
 
+    double vir = 0.0;
     #pragma omp parallel for schedule(guided, CHUNKSIZE) reduction(+:vir)
     for (int i = 0; i < natoms; i++)
     {
         vir += dot(f.at(i), x.at(i));
     }
+    vir *= oneSixth;
+    this->press = this->rhokB * this->temp + vir/this->vol + this->ptail;
 
-    ncut /= (this->natoms-1);
-    this->pe = pe/this->natoms + this->etail + 0.5*ecut*(double)ncut; 
-    vir /= 6.0;
-
-    this->press = this->rho*kB*this->temp + vir/this->vol + this->ptail;
+    ncut *= inatomsm1;
+    this->pe = pe/this->natoms + this->etail + halfecut*(double)ncut; 
 
     return;
 
@@ -377,7 +383,7 @@ void System::PrintAverages()
     cout << "AVERAGES & CONSTANTS (" << this->nsample << " steps sampled out of " << this->nsteps << " total steps)" << endl;
     cout << setw(20) << "Number: " << setw(14) << this->natoms << endl;
     cout << setw(20) << "Density: " << setw(14) << this->rho << endl;
-    cout << setw(20) << "Volume: " << setw(14) << volume(this->box) << endl;
+    cout << setw(20) << "Volume: " << setw(14) << this->vol << endl;
     cout << setw(20) << "Temperature: " << setw(14) << this->Temperature.GetAvg() << " +/- " << setw(14) << this->Temperature.GetError() << endl;
     cout << setw(20) << "Pressure: " << setw(14) << this->Pressure.GetAvg() << " +/- " << setw(14) << this->Pressure.GetError() << endl;
     cout << setw(20) << "Kinetic Energy: " << setw(14) << this->KineticEnergy.GetAvg() << " +/- " << setw(14) << this->KineticEnergy.GetError() << endl;
@@ -431,10 +437,10 @@ void System::OutputVel()
 void System::Sample()
 {
     this->nsample++;
-    this->Temperature.Sample(this->temp);
-    this->Pressure.Sample(this->press);
     this->KineticEnergy.Sample(this->ke);
     this->PotentialEnergy.Sample(this->pe);
+    this->Pressure.Sample(this->press);
+    this->Temperature.Sample(this->temp);
     this->TotalEnergy.Sample(this->ke+this->pe);
     return;
 }
@@ -446,15 +452,15 @@ void System::WriteXTC(int step)
     matrix box_xtc;
 
     // Convert to "nanometer" (even though we are in reduced units)
-    box_xtc[0][0] = this->box.at(0).at(0)/10.0;
-    box_xtc[0][1] = this->box.at(0).at(1)/10.0;
-    box_xtc[0][2] = this->box.at(0).at(2)/10.0;
-    box_xtc[1][0] = this->box.at(1).at(0)/10.0;
-    box_xtc[1][1] = this->box.at(1).at(1)/10.0;
-    box_xtc[1][2] = this->box.at(1).at(2)/10.0;
-    box_xtc[2][0] = this->box.at(2).at(0)/10.0;
-    box_xtc[2][1] = this->box.at(2).at(1)/10.0;
-    box_xtc[2][2] = this->box.at(2).at(2)/10.0;
+    box_xtc[X][X] = this->box.at(X).at(X)*0.1;
+    box_xtc[X][Y] = this->box.at(X).at(Y)*0.1;
+    box_xtc[X][Z] = this->box.at(X).at(Z)*0.1;
+    box_xtc[Y][X] = this->box.at(Y).at(X)*0.1;
+    box_xtc[Y][Y] = this->box.at(Y).at(Y)*0.1;
+    box_xtc[Y][Z] = this->box.at(Y).at(Z)*0.1;
+    box_xtc[Z][X] = this->box.at(Z).at(X)*0.1;
+    box_xtc[Z][Y] = this->box.at(Z).at(Y)*0.1;
+    box_xtc[Z][Z] = this->box.at(Z).at(Z)*0.1;
 
     x_xtc = new rvec[this->x.size()];
     #pragma omp for
@@ -463,14 +469,14 @@ void System::WriteXTC(int step)
 
         // Shift all the points to the center of the box
         this->x.at(i) = pbc(this->x.at(i), this->box);
-        this->x.at(i).at(X) += this->box.at(X).at(X)/2.0;
-        this->x.at(i).at(Y) += this->box.at(Y).at(Y)/2.0;
-        this->x.at(i).at(Z) += this->box.at(Z).at(Z)/2.0;
+        this->x.at(i).at(X) += this->box.at(X).at(X)*0.5;
+        this->x.at(i).at(Y) += this->box.at(Y).at(Y)*0.5;
+        this->x.at(i).at(Z) += this->box.at(Z).at(Z)*0.5;
 
         // Convert to "nanometers"
-        x_xtc[i][X] = this->x.at(i).at(X)/10.0;
-        x_xtc[i][Y] = this->x.at(i).at(Y)/10.0;
-        x_xtc[i][Z] = this->x.at(i).at(Z)/10.0;
+        x_xtc[i][X] = this->x.at(i).at(X)*0.1;
+        x_xtc[i][Y] = this->x.at(i).at(Y)*0.1;
+        x_xtc[i][Z] = this->x.at(i).at(Z)*0.1;
 
     }
 
@@ -488,8 +494,8 @@ void System::ErrorAnalysis(int nblocks)
 {
     this->KineticEnergy.ErrorAnalysis(nblocks);
     this->PotentialEnergy.ErrorAnalysis(nblocks);
-    this->Temperature.ErrorAnalysis(nblocks);
     this->Pressure.ErrorAnalysis(nblocks);
+    this->Temperature.ErrorAnalysis(nblocks);
     this->TotalEnergy.ErrorAnalysis(nblocks);
     return;
 }
@@ -498,8 +504,8 @@ void System::NormalizeAverages()
 {
     this->KineticEnergy.Normalize();
     this->PotentialEnergy.Normalize();
-    this->Temperature.Normalize();
     this->Pressure.Normalize();
+    this->Temperature.Normalize();
     this->TotalEnergy.Normalize();
     return;
 }
