@@ -23,6 +23,7 @@
 #ifndef THERMODYNAMICVARIABLE_H
 #define THERMODYNAMICVARIABLE_H
 
+#include "chunksize.h"
 #include <math.h>
 #include <vector>
 using namespace std;

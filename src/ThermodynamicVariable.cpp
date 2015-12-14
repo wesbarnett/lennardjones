@@ -47,7 +47,7 @@ void ThermodynamicVariable::ErrorAnalysis(int nblocks)
     int nsample = all.size();
     vector <double> block(nblocks);
 
-    #pragma omp for schedule(guided, 15)
+    #pragma omp parallel for schedule(guided, 15) reduction(+:blockavg)
     for (int i = 0; i < nblocks; i++)
     {
         int first = i * nsample / nblocks;
@@ -73,16 +73,18 @@ void ThermodynamicVariable::ErrorAnalysis(int nblocks)
 
     blockavg /= nblocks;
 
-    this->error = 0.0;
+    double error = 0.0;
 
-    #pragma omp for schedule(guided, 15)
+    #pragma omp parallel for schedule(guided, 15) reduction(+:error)
     for (int i = 0; i < nblocks; i++)
     {
-        this->error += pow(block.at(i),2) - pow(blockavg,2);
+        error += pow(block.at(i),2) - pow(blockavg,2);
     }
 
-    this->error /= (nblocks-1);
-    this->error = sqrt(this->error);
+    error /= (nblocks-1);
+    error = sqrt(error);
+    this->error = error;
+
     return;
 }
 
