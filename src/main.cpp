@@ -86,10 +86,10 @@ class System {
         XDRFILE *xd;
     public:
         System(int natoms, int nsteps, double rho, double rcut, double rlist, double temp, double dt, double mindist, double maxtries, string pdbfile, double reft, double coll_freq, string xtcfile, int rdf_nbins, string rdf_outfile, int v_nbins, double v_max, double v_min, string v_outfile);
-        void CalcForce(bool samplestep);
+        void CalcForce();
         void CloseXTC();
         void ErrorAnalysis(int nblocks);
-        void Integrate(int a, bool tcoupl, bool samplestep);
+        void Integrate(int a, bool tcoupl);
         void NormalizeAverages();
         void NormalizeRdf();
         void NormalizeVel();
@@ -226,7 +226,7 @@ retrypoint:
     cout << "done." << endl << endl;
 }
 
-void System::CalcForce(bool samplestep)
+void System::CalcForce()
 {
 
     int ncut = 0;
@@ -274,11 +274,8 @@ void System::CalcForce(bool samplestep)
                     f_thread.at(i) += fr;
                     f_thread.at(j) -= fr;
 
-                    if (samplestep)
-                    {
-                        pe += 4.0*r6i*(r6i-1.0) - this->ecut;
-                        ncut++;
-                    }
+                    pe += 4.0*r6i*(r6i-1.0) - this->ecut;
+                    ncut++;
 
                 }
 
@@ -298,29 +295,26 @@ void System::CalcForce(bool samplestep)
 
     }
 
-    if (samplestep)
+    ncut /= (natoms-1);
+    this->pe = pe/this->natoms2;
+    this->pe += etail + 0.5*ecut*(double)ncut; 
+
+    double vir = 0.0;
+    #pragma omp parallel for schedule(guided, CHUNKSIZE) reduction(+:vir)
+    for (int i = 0; i < this->natoms; i++)
     {
-        ncut /= (natoms-1);
-        this->pe = pe/this->natoms2;
-        this->pe += etail + 0.5*ecut*(double)ncut; 
-
-        double vir = 0.0;
-        #pragma omp parallel for schedule(guided, CHUNKSIZE) reduction(+:vir)
-        for (int i = 0; i < this->natoms; i++)
-        {
-            vir += dot(f.at(i), x.at(i));
-        }
-        vir /= 3.0;
-
-        this->press = this->rho*kB*this->temp + vir/this->vol + this->ptail;
+        vir += dot(f.at(i), x.at(i));
     }
+    vir /= 3.0;
+
+    this->press = this->rho*kB*this->temp + vir/this->vol + this->ptail;
 
     return;
 
 }
 
 // Velocity Verlet integrator in two parts
-void System::Integrate(int a, bool tcoupl, bool samplestep)
+void System::Integrate(int a, bool tcoupl)
 {
 
     if (a == 0) 
@@ -341,10 +335,7 @@ void System::Integrate(int a, bool tcoupl, bool samplestep)
         for (int i = 0; i < natoms; i++)
         {
             this->v.at(i) += this->f.at(i)*this->halfdt;
-            if (samplestep)
-            {
-                sumv2 += dot(this->v.at(i), this->v.at(i));
-            }
+            sumv2 += dot(this->v.at(i), this->v.at(i));
         }
 
         if (tcoupl == true)
@@ -352,11 +343,8 @@ void System::Integrate(int a, bool tcoupl, bool samplestep)
             tstat.DoCollisions(v);
         }
 
-        if (samplestep)
-        {
-            this->temp = sumv2 * this->i3natoms;
-            this->ke = sumv2 * this->i2natoms;
-        }
+        this->temp = sumv2 * this->i3natoms;
+        this->ke = sumv2 * this->i2natoms;
 
     }
 
@@ -751,30 +739,20 @@ int main(int argc, char *argv[])
 
     cout << endl;
 
-    bool samplestep = false;
-
     System sys(natoms, nsteps, rho, rcut, rlist, temp, dt, mindist, maxtries, pdbfile, reft, coll_freq, xtcfile, rdf_nbins, rdf_outfile, v_nbins, v_max, v_min, v_outfile);
     sys.UpdateNeighborList();
-    sys.CalcForce(samplestep);
+    sys.CalcForce();
     sys.PrintHeader();
     sys.Print(0);
 
     for (int step = 1; step < nsteps; step++)
     {
 
-        if ( (step % step_sample) == 0 && (step > eql_steps) )
-        {
-            samplestep = true;
-        }
-        else
-        {
-            samplestep = false;
-        }
 
         // Main part of algorithm
-        sys.Integrate(0, tcoupl, samplestep);
-        sys.CalcForce(samplestep);
-        sys.Integrate(1, tcoupl, samplestep);
+        sys.Integrate(0, tcoupl);
+        sys.CalcForce();
+        sys.Integrate(1, tcoupl);
 
 
         // Update the neighbor list this step?
@@ -796,7 +774,7 @@ int main(int argc, char *argv[])
         }
 
         // Do other sampling this step?
-        if (samplestep)
+        if ( (step % step_sample) == 0 && (step > eql_steps) )
         {
             sys.Sample();
         }
