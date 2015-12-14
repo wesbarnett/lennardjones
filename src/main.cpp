@@ -20,6 +20,8 @@
  *
  */
 
+
+#include "chunksize.h"
 #include "coordinates.h"
 #include "NeighborList.h"
 #include "PdbFile.h"
@@ -238,7 +240,7 @@ void System::CalcForce()
         // each atom's list. The last atom never has it's own list since it will
         // always be on at least one other atom's list (or it is too far away to
         // interact with any other atom)
-        #pragma omp for schedule(guided, 15)
+        #pragma omp for schedule(guided, CHUNKSIZE)
         for (int i = 0; i < this->natoms-1; i++)
         {
 
@@ -295,7 +297,7 @@ void System::Integrate(int a, bool tcoupl)
 
     if (a == 0) 
     {
-        #pragma omp for schedule(guided, 15)
+        #pragma omp parallel for schedule(guided, CHUNKSIZE)
         for (int i = 0; i < this->natoms; i++)
         {
             this->x.at(i) += this->v.at(i)*this->dt + this->f.at(i)*this->halfdt2;
@@ -307,28 +309,16 @@ void System::Integrate(int a, bool tcoupl)
 
         double sumv2 = 0.0;
 
-        #pragma omp parallel
+        #pragma omp parallel for schedule(guided, CHUNKSIZE) reduction(+:sumv2)
+        for (int i = 0; i < natoms; i++)
         {
+            this->v.at(i) += this->f.at(i)*this->halfdt;
+            sumv2 += dot(this->v.at(i), this->v.at(i));
+        }
 
-            double sumv2_thread = 0.0;
-
-            #pragma omp for schedule(guided, 15)
-            for (int i = 0; i < natoms; i++)
-            {
-                this->v.at(i) += this->f.at(i)*this->halfdt;
-                sumv2_thread += dot(this->v.at(i), this->v.at(i));
-            }
-
-            if (tcoupl == true)
-            {
-                tstat.DoCollisions(v);
-            }
-                
-            #pragma omp critical
-            {
-                sumv2 += sumv2_thread;
-            }
-
+        if (tcoupl == true)
+        {
+            tstat.DoCollisions(v);
         }
 
         this->temp = sumv2 * this->i3natoms;
@@ -557,18 +547,6 @@ int main(int argc, char *argv[])
         cout << "ERROR: 'runcontrol.nblocks' needs to be an integer." << endl;
         return -1;
     }
-    const int threads_n = strtol(pt.get<std::string>("runcontrol.nthreads","-1").c_str(), &endptr, 10);
-    cout << "nthreads = " << threads_n << endl;
-    if (*endptr != ' ' && *endptr != 0)
-    {
-        cout << "ERROR: 'runcontrol.nthreads' needs to be an integer." << endl;
-        return -1;
-    }
-    if (threads_n < 1 && threads_n != -1)
-    {
-        cout << "ERROR: 'runcontrol.nthreads' needs to be a positive integer." << endl;
-        return -1;
-    }
 
 
     cout << endl << "[ system ]" << endl;
@@ -726,20 +704,10 @@ int main(int argc, char *argv[])
     cout << endl;
     // END: Read ini file -------------------------
     
-    // Checking OMP settings and notifying user
-    if (threads_n != -1)
-    {
-        cout << "Number of OpenMP threads set by user." << endl;
-        omp_set_dynamic(0);
-        omp_set_num_threads(threads_n);
-    }
     #pragma omp parallel
-    {
-        if (omp_get_thread_num() == 0)
-        {
-            cout << "Using " << omp_get_num_threads() << " OpenMP threads." << endl;
-        }
-    }
+    #pragma omp master
+    cout << "Using " << omp_get_num_threads() << " OpenMP threads." << endl;
+
     cout << endl;
 
     System sys(natoms, nsteps, rho, rcut, rlist, temp, dt, mindist, maxtries, pdbfile, reft, coll_freq, xtcfile, rdf_nbins, rdf_outfile, v_nbins, v_max, v_min, v_outfile);

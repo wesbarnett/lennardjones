@@ -37,6 +37,7 @@ Rdf::Rdf(int nbins, triclinicbox &box, string outfile)
 void Rdf::sample(vector <coordinates> &x, triclinicbox &box)
 {
     this->n++;
+    #pragma omp parallel for schedule(guided, CHUNKSIZE)
     for (unsigned int i = 0; i < x.size()-1; i++)
     {
         for (unsigned int j = i+1; j < x.size(); j++)
@@ -55,6 +56,8 @@ void Rdf::sample(vector <coordinates> &x, triclinicbox &box)
 void Rdf::normalize(int natoms, triclinicbox &box)
 {
     double norm_factor = 4.0/3.0 * M_PI * natoms * (natoms-1.0) * this->n * pow(this->binwidth,3) / volume(box);
+
+    #pragma omp parallel for schedule(guided, CHUNKSIZE)
     for (int i = 0; i < this->nbins; i++)
     {
         double r = (double) i;

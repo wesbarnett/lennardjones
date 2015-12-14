@@ -44,6 +44,7 @@ void Velocity::sample(vector <coordinates> &v)
 {
     this->n++;
     double iv;
+    #pragma omp parallel for schedule(guided, CHUNKSIZE)
     for (unsigned int i = 0; i < v.size(); i++)
     {
         iv = (v.at(i).at(X) + this->shift) / this->binwidth;
@@ -60,6 +61,7 @@ void Velocity::sample(vector <coordinates> &v)
 void Velocity::normalize(int natoms)
 {
     double norm_factor = (double) this->n * natoms;
+    #pragma omp parallel for schedule(guided, CHUNKSIZE)
     for (int i = 0; i < this->nbins; i++)
     {
         this->hist.at(i).at(X) /= norm_factor;

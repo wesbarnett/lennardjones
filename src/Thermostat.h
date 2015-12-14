@@ -24,6 +24,7 @@
 #define THERMOSTAT_H
 
 #include "coordinates.h"
+#include "chunksize.h"
 #include <random>
 #include <math.h>
 

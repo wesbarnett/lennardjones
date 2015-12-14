@@ -24,6 +24,7 @@
 #define VELOCITY_H
 
 #include "coordinates.h"
+#include "chunksize.h"
 
 #include <fstream>
 #include <iomanip>

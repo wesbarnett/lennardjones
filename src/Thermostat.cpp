@@ -40,7 +40,7 @@ void Thermostat::DoCollisions(vector <coordinates> &v)
     uniform_real_distribution<double> dis(0.0, 1.0);
     normal_distribution<double> ndis(0.0, this->sigma);
 
-    #pragma omp for schedule(guided, 15)
+    #pragma omp for schedule(guided, CHUNKSIZE)
     for (unsigned int i = 0; i < v.size(); i++)
     {
 

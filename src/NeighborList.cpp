@@ -36,6 +36,7 @@ NeighborList::NeighborList(int natoms, double rlist)
 void NeighborList::Update(vector <coordinates> &x, triclinicbox &box)
 {
     
+    #pragma omp parallel for schedule(guided, CHUNKSIZE)
     for (unsigned int i = 0; i < this->list.size(); i++)
     {
         this->list.at(i).resize(0);
@@ -43,6 +44,7 @@ void NeighborList::Update(vector <coordinates> &x, triclinicbox &box)
 
     // Atoms are not double counted in the neighbor list. That is, when atom j
     // is on atom i's list, the opposite is not true.
+    #pragma omp parallel for schedule(guided, CHUNKSIZE)
     for (unsigned int i = 0; i < x.size()-1; i++)
     {
         for (unsigned int j = i+1; j < x.size(); j++)

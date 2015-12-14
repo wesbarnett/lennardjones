@@ -24,6 +24,7 @@
 #define RDF_H
 
 #include "coordinates.h"
+#include "chunksize.h"
 #include "triclinicbox.h"
 #include "utils.h"
 
