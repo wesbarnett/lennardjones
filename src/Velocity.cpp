@@ -43,16 +43,33 @@ Velocity::Velocity(int nbins, double max, double min, string outfile)
 void Velocity::sample(vector <coordinates> &v)
 {
     this->n++;
-    double iv;
-    #pragma omp parallel for schedule(guided, CHUNKSIZE)
-    for (unsigned int i = 0; i < v.size(); i++)
+    #pragma omp parallel
     {
-        iv = (v.at(i).at(X) + this->shift) / this->binwidth;
-        this->hist.at(iv).at(X) += 1.0;
-        iv = (v.at(i).at(Y) + this->shift) / this->binwidth;
-        this->hist.at(iv).at(Y) += 1.0;
-        iv = (v.at(i).at(Z) + this->shift) / this->binwidth;
-        this->hist.at(iv).at(Z) += 1.0;
+        double iv;
+        vector <coordinates> hist_thread(nbins);
+        for (int i = 0; i < nbins; i++)
+        {
+            hist_thread.at(i) = 0.0;
+        }
+
+        #pragma omp for schedule(guided, CHUNKSIZE)
+        for (unsigned int i = 0; i < v.size(); i++)
+        {
+            iv = (v.at(i).at(X) + this->shift) / this->binwidth;
+            hist_thread.at(iv).at(X) += 1.0;
+            iv = (v.at(i).at(Y) + this->shift) / this->binwidth;
+            hist_thread.at(iv).at(Y) += 1.0;
+            iv = (v.at(i).at(Z) + this->shift) / this->binwidth;
+            hist_thread.at(iv).at(Z) += 1.0;
+        }
+
+        #pragma omp critical
+        {
+            for (int i = 0; i < nbins; i++)
+            {
+                hist.at(i) += hist_thread.at(i);
+            }
+        }
     }
 
     return;
