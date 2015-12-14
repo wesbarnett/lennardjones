@@ -26,7 +26,7 @@ NeighborList::NeighborList()
 {
 }
 
-void NeighborList::Init(int natoms, double rlist)
+NeighborList::NeighborList(int natoms, double rlist)
 {
     list.resize(natoms);
     this->rlist2 = rlist*rlist;

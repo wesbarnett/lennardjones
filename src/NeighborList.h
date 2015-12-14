@@ -33,6 +33,7 @@ class NeighborList {
         double rlist2;
     public:
         NeighborList();
+        NeighborList(int natoms, double rlist);
         int GetNeighbor(int i, int j);
         int GetSize(int i);
         void Init(int natoms, double rlist);

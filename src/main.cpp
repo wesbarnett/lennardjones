@@ -103,16 +103,19 @@ System::System(int natoms, int nsteps, double rho, double rcut, double rlist, do
     this->x.resize(natoms);
     this->v.resize(natoms);
     this->f.resize(natoms);
+
     this->dt = dt;
     this->halfdt = 0.5*dt;
     this->halfdt2 = 0.5*dt*dt;
+
     this->natoms = natoms;
     this->natoms2 = natoms*natoms;
     this->i2natoms = 1.0/(2.0*(double)natoms);
     this->i3natoms = 1.0/(3.0*(double)natoms);
+
     this->rcut2 = rcut*rcut;
     this->ecut = 4.0 * (1.0/pow(rcut,12) - 1.0/pow(rcut,6));
-    this->nlist.Init(natoms, rlist);
+
     this->nsample = 0;
     this->rho = rho;
     this->nsteps = nsteps;
@@ -131,9 +134,10 @@ System::System(int natoms, int nsteps, double rho, double rcut, double rlist, do
     this->box.at(Z).at(Y) = 0.0;
     cout << "Box is " << box_side << " in each dimension." << endl << endl;
 
+    this->nlist = NeighborList(natoms, rlist);
     this->rdf = Rdf(rdf_nbins, box, rdf_outfile);
-    this->vel = Velocity(v_nbins, v_max, v_min, v_outfile);
     this->tstat = Thermostat(reft, coll_freq, dt);
+    this->vel = Velocity(v_nbins, v_max, v_min, v_outfile);
 
     // Draw from a uniform distribution centered at the origin
     random_device rd;
