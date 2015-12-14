@@ -25,6 +25,7 @@
 #include "PdbFile.h"
 #include "Rdf.h"
 #include "Thermostat.h"
+#include "ThermodynamicVariable.h"
 #include "triclinicbox.h"
 #include "utils.h"
 #include "Velocity.h"
@@ -48,22 +49,15 @@ class System {
         double dt;
         double ecut;
         double entot;
-        double entot_avg;
         double halfdt;
         double halfdt2;
         double i2natoms;
         double i3natoms;
         double ke;
-        double ke_avg;
-        double ke_stddev;
         double pe;
-        double pe_avg;
-        double pe_stddev;
         double rcut2;
         double rho;
         double temp;
-        double temp_avg;
-        double temp_stddev;
         int natoms;
         int natoms2;
         int nsample;
@@ -71,13 +65,14 @@ class System {
         NeighborList nlist;
         Rdf rdf;
         triclinicbox box;
+        ThermodynamicVariable KineticEnergy;
+        ThermodynamicVariable PotentialEnergy;
+        ThermodynamicVariable Temperature;
+        ThermodynamicVariable TotalEnergy;
         Thermostat tstat;
         vector <coordinates> f;
         vector <coordinates> v;
         vector <coordinates> x;
-        vector <double> ke_all;
-        vector <double> pe_all;
-        vector <double> temp_all;
         Velocity vel;
         XDRFILE *xd;
     public:
@@ -116,13 +111,9 @@ System::System(int natoms, int nsteps, double rho, double rcut, double rlist, do
     this->i2natoms = 1.0/(2.0*(double)natoms);
     this->i3natoms = 1.0/(3.0*(double)natoms);
     this->rcut2 = rcut*rcut;
-    this-> ecut = 4.0 * (1.0/pow(rcut,12) - 1.0/pow(rcut,6));
+    this->ecut = 4.0 * (1.0/pow(rcut,12) - 1.0/pow(rcut,6));
     this->nlist.Init(natoms, rlist);
     this->nsample = 0;
-    this->temp_avg = 0.0;
-    this->ke_avg = 0.0;
-    this->pe_avg = 0.0;
-    this->entot_avg = 0.0;
     this->rho = rho;
     this->nsteps = nsteps;
     this->xd = xdrfile_open(xtcfile.c_str(), "w");
@@ -373,10 +364,10 @@ void System::PrintAverages()
     cout << setw(20) << "Number: " << setw(14) << this->natoms << endl;
     cout << setw(20) << "Density: " << setw(14) << this->rho << endl;
     cout << setw(20) << "Volume: " << setw(14) << volume(this->box) << endl;
-    cout << setw(20) << "Temperature: " << setw(14) << this->temp_avg << " +/- " << setw(14) << this->temp_stddev << endl;
-    cout << setw(20) << "Kinetic Energy: " << setw(14) << this->ke_avg << " +/- " << setw(14) << this->ke_stddev << endl;
-    cout << setw(20) << "Potential Energy: " << setw(14) << this->pe_avg << " +/- " << setw(14) << this->pe_stddev << endl;
-    cout << setw(20) << "Total Energy: " << setw(14) << this->entot_avg << endl;
+    cout << setw(20) << "Temperature: " << setw(14) << this->Temperature.GetAvg() << " +/- " << setw(14) << this->Temperature.GetError() << endl;
+    cout << setw(20) << "Kinetic Energy: " << setw(14) << this->KineticEnergy.GetAvg() << " +/- " << setw(14) << this->KineticEnergy.GetError() << endl;
+    cout << setw(20) << "Potential Energy: " << setw(14) << this->PotentialEnergy.GetAvg() << " +/- " << setw(14) << this->PotentialEnergy.GetError() << endl;
+    cout << setw(20) << "Total Energy: " << setw(14) << this->TotalEnergy.GetAvg() << " +/- " << setw(14) << this->TotalEnergy.GetError() << endl;
     return;
 }
 
@@ -424,14 +415,10 @@ void System::OutputVel()
 
 void System::Sample()
 {
-    this->nsample++;
-    this->temp_all.push_back(this->temp);
-    this->temp_avg += this->temp;
-    this->ke_all.push_back(this->ke);
-    this->ke_avg += this->ke;
-    this->pe_all.push_back(this->pe);
-    this->pe_avg += this->pe;
-    this->entot_avg += this->ke + this->pe;
+    this->Temperature.Sample(this->temp);
+    this->KineticEnergy.Sample(this->ke);
+    this->PotentialEnergy.Sample(this->pe);
+    this->TotalEnergy.Sample(this->ke+this->pe);
     return;
 }
 
@@ -482,79 +469,19 @@ void System::CloseXTC()
 
 void System::ErrorAnalysis(int nblocks)
 {
-    vector <double> temp_block(nblocks);
-    vector <double> pe_block(nblocks);
-    vector <double> ke_block(nblocks);
-
-    for (int i = 0; i < nblocks; i++)
-    {
-        int first = i * this->nsample / nblocks;
-        int last;
-
-        if (i == nblocks)
-        {
-            last = this->nsample;
-        }
-        else
-        {
-            last = (i + 1) * this->nsample / nblocks;
-        }
-
-        for (int j = first; j < last; j++)
-        {
-            temp_block.at(i) += this->temp_all.at(j);
-            ke_block.at(i) += this->ke_all.at(j);
-            pe_block.at(i) += this->pe_all.at(j);
-        }
-
-        temp_block.at(i) /= (double) (last - first);
-        ke_block.at(i) /= (double) (last - first);
-        pe_block.at(i) /= (double) (last - first);
-    }
-
-    double temp_blockavg = 0.0;
-    double ke_blockavg = 0.0;
-    double pe_blockavg = 0.0;
-
-    for (int i = 0; i < nblocks; i++)
-    {
-        temp_blockavg += temp_block.at(i);
-        ke_blockavg += ke_block.at(i);
-        pe_blockavg += pe_block.at(i);
-    }
-
-    temp_blockavg /= nblocks;
-    pe_blockavg /= nblocks;
-    ke_blockavg /= nblocks;
-
-    this->temp_stddev = 0.0;
-    this->ke_stddev = 0.0;
-    this->pe_stddev = 0.0;
-
-    for (int i = 0; i < nblocks; i++)
-    {
-        this->temp_stddev += pow(temp_block.at(i),2) - pow(temp_blockavg,2);
-        this->ke_stddev += pow(ke_block.at(i),2) - pow(ke_blockavg,2);
-        this->pe_stddev += pow(pe_block.at(i),2) - pow(pe_blockavg,2);
-    }
-
-    this->temp_stddev /= (nblocks-1);
-    this->ke_stddev /= (nblocks-1);
-    this->pe_stddev /= (nblocks-1);
-
-    this->temp_stddev = sqrt(this->temp_stddev);
-    this->pe_stddev = sqrt(this->pe_stddev);
-    this->ke_stddev = sqrt(this->ke_stddev);
-
+    this->KineticEnergy.ErrorAnalysis(nblocks);
+    this->PotentialEnergy.ErrorAnalysis(nblocks);
+    this->Temperature.ErrorAnalysis(nblocks);
+    this->TotalEnergy.ErrorAnalysis(nblocks);
     return;
 }
 
 void System::NormalizeAverages()
 {
-    this->temp_avg /= (double) this->nsample;
-    this->ke_avg /= (double) this->nsample;
-    this->pe_avg /= (double) this->nsample;
-    this->entot_avg /= (double) this->nsample;
+    this->KineticEnergy.Normalize();
+    this->PotentialEnergy.Normalize();
+    this->Temperature.Normalize();
+    this->TotalEnergy.Normalize();
     return;
 }
 
