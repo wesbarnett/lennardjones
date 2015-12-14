@@ -86,10 +86,10 @@ class System {
         XDRFILE *xd;
     public:
         System(int natoms, int nsteps, double rho, double rcut, double rlist, double temp, double dt, double mindist, double maxtries, string pdbfile, double reft, double coll_freq, string xtcfile, int rdf_nbins, string rdf_outfile, int v_nbins, double v_max, double v_min, string v_outfile);
-        void CalcForce();
+        void CalcForce(bool samplestep);
         void CloseXTC();
         void ErrorAnalysis(int nblocks);
-        void Integrate(int a, bool tcoupl);
+        void Integrate(int a, bool tcoupl, bool samplestep);
         void NormalizeAverages();
         void NormalizeRdf();
         void NormalizeVel();
@@ -226,11 +226,11 @@ retrypoint:
     cout << "done." << endl << endl;
 }
 
-void System::CalcForce()
+void System::CalcForce(bool samplestep)
 {
 
     int ncut = 0;
-    this->pe = 0.0;
+    double pe = 0.0;
     for (int i = 0; i < this->natoms; i++)
     {
         this->f.at(i) = 0.0;
@@ -240,7 +240,6 @@ void System::CalcForce()
     {
 
         vector <coordinates> f_thread(natoms);
-        double pe_thread = 0.0;
         for (int i = 0; i < this->natoms; i++)
         {
             f_thread.at(i) = 0.0;
@@ -251,7 +250,7 @@ void System::CalcForce()
         // each atom's list. The last atom never has it's own list since it will
         // always be on at least one other atom's list (or it is too far away to
         // interact with any other atom)
-        #pragma omp for schedule(guided, CHUNKSIZE) reduction(+:ncut)
+        #pragma omp for schedule(guided, CHUNKSIZE) reduction(+:ncut,pe)
         for (int i = 0; i < this->natoms-1; i++)
         {
 
@@ -275,8 +274,11 @@ void System::CalcForce()
                     f_thread.at(i) += fr;
                     f_thread.at(j) -= fr;
 
-                    pe_thread += 4.0*r6i*(r6i-1.0) - this->ecut;
-                    ncut++;
+                    if (samplestep)
+                    {
+                        pe += 4.0*r6i*(r6i-1.0) - this->ecut;
+                        ncut++;
+                    }
 
                 }
 
@@ -290,33 +292,35 @@ void System::CalcForce()
             for (int i = 0; i < natoms; i++)
             {
                 this->f.at(i) += f_thread.at(i);
-                this->pe += pe_thread;
             }
 
         }
 
     }
 
-    ncut /= (natoms-1);
-    this->pe /= this->natoms2;
-    this->pe += etail + 0.5*ecut*(double)ncut; 
-
-    double vir = 0.0;
-    #pragma omp parallel for schedule(guided, CHUNKSIZE) reduction(+:vir)
-    for (int i = 0; i < this->natoms; i++)
+    if (samplestep)
     {
-        vir += dot(f.at(i), x.at(i));
-    }
-    vir /= 3.0;
+        ncut /= (natoms-1);
+        this->pe = pe/this->natoms2;
+        this->pe += etail + 0.5*ecut*(double)ncut; 
 
-    this->press = this->rho*kB*this->temp + vir/this->vol + this->ptail;
+        double vir = 0.0;
+        #pragma omp parallel for schedule(guided, CHUNKSIZE) reduction(+:vir)
+        for (int i = 0; i < this->natoms; i++)
+        {
+            vir += dot(f.at(i), x.at(i));
+        }
+        vir /= 3.0;
+
+        this->press = this->rho*kB*this->temp + vir/this->vol + this->ptail;
+    }
 
     return;
 
 }
 
 // Velocity Verlet integrator in two parts
-void System::Integrate(int a, bool tcoupl)
+void System::Integrate(int a, bool tcoupl, bool samplestep)
 {
 
     if (a == 0) 
@@ -337,7 +341,10 @@ void System::Integrate(int a, bool tcoupl)
         for (int i = 0; i < natoms; i++)
         {
             this->v.at(i) += this->f.at(i)*this->halfdt;
-            sumv2 += dot(this->v.at(i), this->v.at(i));
+            if (samplestep)
+            {
+                sumv2 += dot(this->v.at(i), this->v.at(i));
+            }
         }
 
         if (tcoupl == true)
@@ -345,8 +352,11 @@ void System::Integrate(int a, bool tcoupl)
             tstat.DoCollisions(v);
         }
 
-        this->temp = sumv2 * this->i3natoms;
-        this->ke = sumv2 * this->i2natoms;
+        if (samplestep)
+        {
+            this->temp = sumv2 * this->i3natoms;
+            this->ke = sumv2 * this->i2natoms;
+        }
 
     }
 
@@ -741,19 +751,31 @@ int main(int argc, char *argv[])
 
     cout << endl;
 
+    bool samplestep = false;
+
     System sys(natoms, nsteps, rho, rcut, rlist, temp, dt, mindist, maxtries, pdbfile, reft, coll_freq, xtcfile, rdf_nbins, rdf_outfile, v_nbins, v_max, v_min, v_outfile);
     sys.UpdateNeighborList();
-    sys.CalcForce();
+    sys.CalcForce(samplestep);
     sys.PrintHeader();
     sys.Print(0);
 
     for (int step = 1; step < nsteps; step++)
     {
 
+        if ( (step % step_sample) == 0 && (step > eql_steps) )
+        {
+            samplestep = true;
+        }
+        else
+        {
+            samplestep = false;
+        }
+
         // Main part of algorithm
-        sys.Integrate(0, tcoupl);
-        sys.CalcForce();
-        sys.Integrate(1, tcoupl);
+        sys.Integrate(0, tcoupl, samplestep);
+        sys.CalcForce(samplestep);
+        sys.Integrate(1, tcoupl, samplestep);
+
 
         // Update the neighbor list this step?
         if (step % nlist == 0)
@@ -774,7 +796,7 @@ int main(int argc, char *argv[])
         }
 
         // Do other sampling this step?
-        if ( (step % step_sample) == 0 && (step > eql_steps) )
+        if (samplestep)
         {
             sys.Sample();
         }
