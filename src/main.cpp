@@ -513,6 +513,8 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    cout << setprecision(6) << fixed;
+
     cout << "Reading from " << argv[1] << "..." << endl;
 
     // BEGIN: Read ini file --------------------------
