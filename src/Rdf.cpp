@@ -37,18 +37,33 @@ Rdf::Rdf(int nbins, triclinicbox &box, string outfile)
 void Rdf::sample(vector <coordinates> &x, triclinicbox &box)
 {
     this->n++;
-    #pragma omp parallel for schedule(guided, CHUNKSIZE)
-    for (unsigned int i = 0; i < x.size()-1; i++)
+    #pragma omp parallel
     {
-        for (unsigned int j = i+1; j < x.size(); j++)
+
+        vector <double> g_thread(nbins, 0.0);
+
+        #pragma omp for schedule(guided, CHUNKSIZE)
+        for (unsigned int i = 0; i < x.size()-1; i++)
         {
-            double d = distance(x.at(i), x.at(j), box);
-            if (d < box.at(0).at(0)/2.0)
+            for (unsigned int j = i+1; j < x.size(); j++)
             {
-                int ig = d/this->binwidth;
-                this->g.at(ig) += 2.0;
+                double d = distance(x.at(i), x.at(j), box);
+                if (d < box.at(0).at(0)/2.0)
+                {
+                    int ig = d/this->binwidth;
+                    g_thread.at(ig) += 2.0;
+                }
             }
         }
+
+        #pragma omp critical
+        {
+            for (int i = 0; i < nbins; i++)
+            {
+                this->g.at(i) += g_thread.at(i);
+            }
+        }
+
     }
     return;
 }
