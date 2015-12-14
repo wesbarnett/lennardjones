@@ -13,13 +13,12 @@ writing the trajectory to .xtc. Some of the classes I use are based on my
 
 Current features:
 
-* NVE
-* NVT (with Andersen)
+* Andersen thermostat
 * Velocity Verlet integrator
 * Calculate RDF
 * Calculate velocity distribution
-* Block error analysis (only on temperature, KE, and PE currently)
 * Neighbor lists
+* Block error analysis
 
 Reduced units are used. 
 
