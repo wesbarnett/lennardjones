@@ -435,6 +435,7 @@ void System::OutputVel()
 
 void System::Sample()
 {
+    this->nsample++;
     this->Temperature.Sample(this->temp);
     this->Pressure.Sample(this->press);
     this->KineticEnergy.Sample(this->ke);
