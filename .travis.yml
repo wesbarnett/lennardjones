@@ -1,0 +1,25 @@
+language: cpp
+compiler: gcc
+sudo: false
+install: 
+    - wget --no-check-certificate https://cmake.org/files/v3.4/cmake-3.4.1.tar.gz
+    - tar xzf cmake-3.4.1.tar.gz
+    - cd cmake-3.4.1
+    - ./configure --prefix=$HOME/cmake/
+    - make
+    - make install
+    - cd ..
+    - wget --no-check-certificate ftp://ftp.gromacs.org/contrib/xdrfile-1.1.4.tar.gz
+    - tar xdrfile-1.1.4.tar.gz
+    - cd xdrfile-1.1.4
+    - ./configure --prefix=$HOME/xdrfile
+    - make
+    - make install
+    - cd ..
+    - export CPLUS_INCLUDE_PATH=$CPLUS_INCLUDE_PATH:$HOME/xdrfile/include
+    - export LD_LIBRARY_PATH=$CPLUS_INCLUDE_PATH:$HOME/xdrfile/lib
+script: 
+    - mkdir build 
+    - cd build
+    - $HOME/cmake/bin/cmake .. 
+    - make -j 4
