@@ -10,7 +10,7 @@ install:
     - make install
     - cd ..
     - wget --no-check-certificate ftp://ftp.gromacs.org/contrib/xdrfile-1.1.4.tar.gz
-    - tar xdrfile-1.1.4.tar.gz
+    - tar xzf xdrfile-1.1.4.tar.gz
     - cd xdrfile-1.1.4
     - ./configure --prefix=$HOME/xdrfile
     - make
