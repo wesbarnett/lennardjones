@@ -26,16 +26,17 @@ Reduced units are used.
 
 To compile simply do:
 
+    mkdir build
+    cd build
+    cmake ..
     make
-
-You may have to modify `Makefile` if you have libraries installed in a custom
-location.
+    make install
 
 ## Running
 
 To run do:
 
-    ./md md.ini
+    ljmd md.ini
 
 If no file configuration file is specified, then the program attempts to open
 'md.ini.' If the file you specify is not found, the defaults options are used

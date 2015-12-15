@@ -1,0 +1,33 @@
+
+add_executable(ljmd coordinates.cpp main.cpp NeighborList.cpp PdbFile.cpp
+Rdf.cpp ThermodynamicVariable.cpp Thermostat.cpp triclinicbox.cpp utils.cpp
+Velocity.cpp)
+
+find_library(
+    LIBXDRFILE xdrfile
+    HINTS ENV LD_LIBRARY_PATH
+)
+
+if(${LIBXDRFILE} STREQUAL "LIBXDRFILE-NOTFOUND")
+    message(FATAL_ERROR "Couldn't find the xdrfile library.")
+endif()
+
+find_path(
+    XDRFILE_INCLUDES
+    NAMES "xdrfile/"
+    HINTS ENV CPLUS_INCLUDE_PATH
+)
+
+message(STATUS "Found xdrfile library at: ${LIBXDRFILE}")
+message(STATUS "Found xdrfile headrs at: ${XDRFILE_INCLUDES}")
+
+find_package(Boost)
+
+if(!${Boost_FOUND})
+    message(FATAL_ERROR "Boost libraries not found.")
+endif()
+
+target_link_libraries(ljmd ${LIBBBOOST} ${LIBXDRFILE})
+target_include_directories(ljmd PUBLIC ${BOOST_INCLUDES} ${XDRFILE_INCLUDES})
+
+install (TARGETS ljmd DESTINATION bin)
