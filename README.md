@@ -1,6 +1,6 @@
 # Lennard Jones Molecular Dynamics in C++
 
-![Box of Lennard-Jonesium](lj.png)
+![Box of Lennard-Jonesium](extra/lj.png)
 
 ## About
 
