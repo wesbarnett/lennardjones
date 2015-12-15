@@ -512,6 +512,20 @@ void System::NormalizeAverages()
 
 int main(int argc, char *argv[])
 {
+    cout << endl;
+    cout << "=============================================================================" << endl;
+    cout << "Lennard Jones Molecular Dynamics Simulator" << endl;
+    cout << "=============================================================================" << endl << endl;
+
+    cout << "Copyright (C) 2015 James W. Barnett <jbarnet4@tulane.edu>" << endl << endl;
+    cout << "https://github.com/wesbarnett/lennardjones" << endl << endl;
+
+    cout << "This program is free software; you can redistribute it and/or modify it under" << endl;
+    cout << "the terms of the GNU General Public License as published by the Free Software" << endl;
+    cout << "Foundation; either version 2 of the License, or (at your option) any later" << endl;
+    cout << "version. See 'LICENSE' in source code for full license." << endl << endl;
+
+    cout << "-----------------------------------------------------------------------------" << endl << endl;
 
     const string defaultfilename = "md.ini";
     string inifile;
