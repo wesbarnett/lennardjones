@@ -49,30 +49,31 @@ using namespace std;
 const double kB = 1.3806485279; // Boltzmann's Constant (J / K)
 const double oneSixth = 1.0/6.0;
 
-class System {
+class System 
+{
     private:
-        double dt;
-        double ecut;
-        double entot;
-        double etail;
-        double halfdt;
-        double halfdt2;
-        double halfecut;
-        double inatomsm1;
-        double i2natoms;
-        double i3natoms;
-        double ke;
-        double pe;
-        double press;
-        double ptail;
-        double rcut2;
-        double rho;
-        double rhokB;
-        double temp;
-        double vol;
-        int natoms;
-        int nsample;
-        int nsteps;
+        double dt;              // time step
+        double ecut;            // potential energy at cutoff
+        double entot;           // instantaneous total energy (ke + pe)
+        double etail;           // energy tail correction
+        double halfdt;          // 0.5 * dt
+        double halfdt2;         // 0.5 * dt*dt
+        double halfecut;        // 0.5 * ecut
+        double inatomsm1;       // 1.0/natoms - 1.0
+        double i2natoms;        // 1.0(2.0*natoms)
+        double i3natoms;        // 1.0(3.0*natoms)
+        double ke;              // instantaneous kinetic energy
+        double pe;              // instantaneous potential energy
+        double press;           // instantaneous pressure
+        double ptail;           // pressure tail correction
+        double rcut2;           // rcut*rcut
+        double rho;             // density (constant)
+        double rhokB;           // density * boltzmann's constant
+        double temp;            // instantaneous temperature
+        double vol;             // volume (constant)
+        int natoms;             // number of atoms in system
+        int nsample;            // counter of number of samples
+        int nsteps;             // number of steps for simulation to perform
         NeighborList nlist;
         Rdf rdf;
         triclinicbox box;
@@ -82,9 +83,9 @@ class System {
         ThermodynamicVariable Temperature;
         ThermodynamicVariable TotalEnergy;
         Thermostat tstat;
-        vector <coordinates> f;
-        vector <coordinates> v;
-        vector <coordinates> x;
+        vector <coordinates> f; // forces
+        vector <coordinates> v; // velocities
+        vector <coordinates> x; // positions
         Velocity vel;
         XDRFILE *xd;
     public:
