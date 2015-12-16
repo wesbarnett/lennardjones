@@ -23,10 +23,11 @@
 #ifndef NEIGHBORLIST_H
 #define NEIGHBORLIST_H
 
-#include "coordinates.h"
 #include "chunksize.h"
-#include "triclinicbox.h"
-#include "utils.h"
+
+#include "gmxcpp/coordinates.h"
+#include "gmxcpp/triclinicbox.h"
+#include "gmxcpp/Utils.h"
 
 class NeighborList {
     private:

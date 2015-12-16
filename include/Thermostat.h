@@ -23,10 +23,12 @@
 #ifndef THERMOSTAT_H
 #define THERMOSTAT_H
 
-#include "coordinates.h"
 #include "chunksize.h"
-#include <random>
+
+#include "gmxcpp/coordinates.h"
+
 #include <math.h>
+#include <random>
 
 using namespace std;
 

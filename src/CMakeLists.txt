@@ -15,27 +15,26 @@
 # The full license is located in a text file titled "LICENSE" in the root
 # directory of the source.
 
-add_executable(ljmd coordinates.cpp main.cpp NeighborList.cpp PdbFile.cpp
-Rdf.cpp ThermodynamicVariable.cpp Thermostat.cpp triclinicbox.cpp utils.cpp
-Velocity.cpp)
+add_executable(ljmd main.cpp NeighborList.cpp PdbFile.cpp
+Rdf.cpp ThermodynamicVariable.cpp Thermostat.cpp Velocity.cpp)
 
 find_library(
-    LIBXDRFILE xdrfile
+    LIBGMXCPP gmxcpp
     HINTS ENV LD_LIBRARY_PATH
 )
 
-if(${LIBXDRFILE} STREQUAL "LIBXDRFILE-NOTFOUND")
-    message(FATAL_ERROR "Couldn't find the xdrfile library.")
+if(${LIBGMXCPP} STREQUAL "LIBGMXCPP-NOTFOUND")
+    message(FATAL_ERROR "Couldn't find the gmxcpp library.")
 endif()
 
 find_path(
-    XDRFILE_INCLUDES
-    NAMES "xdrfile/"
+    GMXCPP_INCLUDES
+    NAMES "gmxcpp/"
     HINTS ENV CPLUS_INCLUDE_PATH
 )
 
-message(STATUS "Found xdrfile library at: ${LIBXDRFILE}")
-message(STATUS "Found xdrfile headrs at: ${XDRFILE_INCLUDES}")
+message(STATUS "Found gmxcpp library at: ${LIBGMXCPP}")
+message(STATUS "Found gmxcpp headrs at: ${GMXCPP_INCLUDES}")
 
 find_package(Boost)
 
@@ -43,7 +42,7 @@ if(!${Boost_FOUND})
     message(FATAL_ERROR "Boost libraries not found.")
 endif()
 
-target_link_libraries(ljmd ${LIBBBOOST} ${LIBXDRFILE})
-target_include_directories(ljmd PUBLIC ${BOOST_INCLUDES} ${XDRFILE_INCLUDES})
+target_link_libraries(ljmd ${LIBBBOOST} ${LIBGMXCPP})
+target_include_directories(ljmd PUBLIC ${BOOST_INCLUDES} ${GMXCPP_INCLUDES})
 
 install (TARGETS ljmd DESTINATION bin)

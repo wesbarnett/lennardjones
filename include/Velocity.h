@@ -23,8 +23,9 @@
 #ifndef VELOCITY_H
 #define VELOCITY_H
 
-#include "coordinates.h"
 #include "chunksize.h"
+
+#include "gmxcpp/coordinates.h"
 
 #include <fstream>
 #include <iomanip>

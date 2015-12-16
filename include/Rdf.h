@@ -23,16 +23,17 @@
 #ifndef RDF_H
 #define RDF_H
 
-#include "coordinates.h"
 #include "chunksize.h"
-#include "triclinicbox.h"
-#include "utils.h"
 
 #include <fstream>
 #include <iomanip>
 #include <math.h>
 #include <string>
 #include <vector>
+
+#include "gmxcpp/coordinates.h"
+#include "gmxcpp/triclinicbox.h"
+#include "gmxcpp/Utils.h"
 
 using namespace std;
 
