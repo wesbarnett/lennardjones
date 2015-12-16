@@ -557,53 +557,43 @@ int main(int argc, char *argv[])
 
     char *endptr;
 
-    cout << endl << "[ setup ]" << endl;
     const double mindist = strtod(pt.get<std::string>("setup.mindist","1.0").c_str(), &endptr); 
-    cout << "mindist = " << mindist << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'setup.mindist' needs to be a real number." << endl;
         return -1;
     }
     const double maxtries = strtod(pt.get<std::string>("setup.maxtries","10e6").c_str(), &endptr); 
-    cout << "maxtries = " << maxtries << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'setup.maxtries' needs to be a real number." << endl;
         return -1;
     }
-
-    cout << endl << "[ runcontrol ]" << endl;
     const double dt = strtod(pt.get<std::string>("runcontrol.dt","0.005").c_str(), &endptr); 
-    cout << "dt = " << dt << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'runcontrol.dt' needs to be a real number." << endl;
         return -1;
     }
     const int nsteps = strtol(pt.get<std::string>("runcontrol.nsteps","5000000").c_str(), &endptr, 10);
-    cout << "nsteps = " << nsteps << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'runcontrol.nsteps' needs to be an integer." << endl;
         return -1;
     }
     const int eql_steps = strtol(pt.get<std::string>("runcontrol.eql_steps","10000").c_str(), &endptr, 10);
-    cout << "eql_steps = " << eql_steps << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'runcontrol.eql_steps' needs to be an integer." << endl;
         return -1;
     }
     const int step_sample = strtol(pt.get<std::string>("runcontrol.nsample","1000").c_str(), &endptr, 10);
-    cout << "nsample = " << step_sample << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'runcontrol.nsample' needs to be an integer." << endl;
         return -1;
     }
     const int nblocks = strtol(pt.get<std::string>("runcontrol.nblocks","5").c_str(), &endptr, 10);
-    cout << "nblocks = " << nblocks << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'runcontrol.nblocks' needs to be an integer." << endl;
@@ -611,16 +601,13 @@ int main(int argc, char *argv[])
     }
 
 
-    cout << endl << "[ system ]" << endl;
     const int natoms = strtol(pt.get<std::string>("system.natoms","108").c_str(), &endptr, 10);
-    cout << "natoms = " << natoms << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'system.natoms' needs to be an integer." << endl;
         return -1;
     }
     const double rho = strtod(pt.get<std::string>("system.rho","0.5").c_str(), &endptr); 
-    cout << "rho = " << rho << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'system.rho' needs to be a real number." << endl;
@@ -628,141 +615,160 @@ int main(int argc, char *argv[])
     }
     // Note: not a constant
     double temp = strtod(pt.get<std::string>("system.inittemp","1.0").c_str(), &endptr); 
-    cout << "inittemp = " << temp << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'system.inittemp' needs to be a real number." << endl;
         return -1;
     }
     const double rcut = strtod(pt.get<std::string>("system.rcut","2.5").c_str(), &endptr); 
-    cout << "rcut = " << rcut << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'system.rcut' needs to be a real number." << endl;
         return -1;
     }
     const double rlist = strtod(pt.get<std::string>("runcontrol.rlist","3.5").c_str(), &endptr); 
-    cout << "rlist = " << rlist << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'runcontrol.rlist' needs to be a real number." << endl;
         return -1;
     }
     const int nlist = strtol(pt.get<std::string>("runcontrol.nlist","10").c_str(), &endptr, 10); 
-    cout << "nlist = " << nlist << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'runcontrol.nlist' needs to be a real number." << endl;
         return -1;
     }
 
-    cout << endl << "[ output ]" << endl;
     const string pdbfile = pt.get<std::string>("output.pdbfile","init.pdb");
-    cout << "pdbfile = " << pdbfile << endl;
     const string xtcfile = pt.get<std::string>("output.xtcfile","traj.xtc");
-    cout << "xtcfile = " << xtcfile << endl;
     const int nxtc = strtol(pt.get<std::string>("output.nxtc","1000").c_str(), &endptr, 10);
-    cout << "nxtc = " << nxtc << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'output.nxtc' needs to be an integer." << endl;
         return -1;
     }
     const int nlog = strtol(pt.get<std::string>("output.nlog","1000").c_str(), &endptr, 10);
-    cout << "nlog = " << nlog << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'output.nlog' needs to be an integer." << endl;
         return -1;
     }
 
-    cout << endl << "[ temperature ]" << endl;
     const string tcouplstr = pt.get<std::string>("temperature.coupl","no");
     bool tcoupl = false;
-    cout << "coupl = " << tcouplstr << endl;
     if (tcouplstr == "yes")
     {
         tcoupl = true;
     }
     const double coll_freq = strtod(pt.get<std::string>("temperature.coll_freq","0.001").c_str(), &endptr); 
-    cout << "coll_freq = " << coll_freq << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'temperature.coll_freq' needs to be a real number." << endl;
         return -1;
     }
     const double reft = strtod(pt.get<std::string>("temperature.reft","1.0").c_str(), &endptr); 
-    cout << "reft = " << reft << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'temperature.reft' needs to be a real number." << endl;
         return -1;
     }
 
-    cout << endl << "[ rdf ]" << endl;
     const string dordfstr = pt.get<std::string>("rdf.sample","no");
     bool dordf = false;
-    cout << "sample = " << dordfstr << endl;
     if (dordfstr == "yes")
     {
         dordf = true;
     }
     const int rdf_nbins = strtol(pt.get<std::string>("rdf.nbins","100").c_str(), &endptr, 10);
-    cout << "nbins = " << rdf_nbins << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'rdf.nbins' needs to be an integer." << endl;
         return -1;
     }
     const string rdf_outfile = pt.get<std::string>("rdf.outfile","rdf.dat");
-    cout << "outfile = " << rdf_outfile << endl;
     const int rdf_freq = strtol(pt.get<std::string>("rdf.freq","1000").c_str(), &endptr, 10);
-    cout << "freq = " << rdf_freq << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'rdf.freq' needs to be an integer." << endl;
         return -1;
     }
 
-    cout << endl << "[ velocity ]" << endl;
     const string dovelstr = pt.get<std::string>("velocity.sample","no");
     bool dovel = false;
-    cout << "sample = " << dovelstr << endl;
     if (dovelstr == "yes")
     {
         dovel = true;
     }
     const double v_max = strtod(pt.get<std::string>("velocity.max","10.0").c_str(), &endptr); 
-    cout << "max = " << v_max << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'velocity.max' needs to be a real number." << endl;
         return -1;
     }
     const double v_min = strtod(pt.get<std::string>("velocity.min","-10.0").c_str(), &endptr); 
-    cout << "min = " << v_min << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'velocity.min' needs to be a real number." << endl;
         return -1;
     }
     const int v_nbins = strtol(pt.get<std::string>("velocity.nbins","100").c_str(), &endptr, 10);
-    cout << "nbins = " << v_nbins << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'velocity.nbins' needs to be an integer." << endl;
         return -1;
     }
     const string v_outfile = pt.get<std::string>("velocity.outfile","vel_dist.dat");
-    cout << "outfile = " << v_outfile << endl;
     const int v_freq = strtol(pt.get<std::string>("velocity.freq","1000").c_str(), &endptr, 10);
-    cout << "freq = " << v_freq << endl;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'velocity.freq' needs to be an integer." << endl;
         return -1;
     }
 
+    cout << endl;
+    cout << setw(30) << left << "[ setup ]" << endl;
+    cout << setw(30) << left << "maxtries = " << setw(30) << left << maxtries << endl;
+    cout << setw(30) << left << "mindist = "  << setw(30) << left << mindist << endl;
+    cout << setw(30) << left << "dt = " << dt << endl;
+    cout << endl;
+    cout << setw(30) << left << "[ runcontrol ]" << endl;
+    cout << setw(30) << left << "nsteps = " << setw(30) << left << nsteps << endl;
+    cout << setw(30) << left << "eql_steps = " << setw(30) << left << eql_steps << endl;
+    cout << setw(30) << left << "nsample = " << setw(30) << left << step_sample << endl;
+    cout << setw(30) << left << "nblocks = " << setw(30) << left << nblocks << endl;
+    cout << endl;
+    cout << setw(30) << left << "[ system ]" << endl;
+    cout << setw(30) << left << "natoms = " << setw(30) << left << natoms << endl;
+    cout << setw(30) << left << "rho = " << setw(30) << left << rho << endl;
+    cout << setw(30) << left << "inittemp = " << setw(30) << left << temp << endl;
+    cout << setw(30) << left << "rcut = " << setw(30) << left << rcut << endl;
+    cout << setw(30) << left << "rlist = " << setw(30) << left << rlist << endl;
+    cout << setw(30) << left << "nlist = " << setw(30) << left << nlist << endl;
+    cout << endl;
+    cout << setw(30) << left << "[ output ]" << endl;
+    cout << setw(30) << left << "pdbfile = " << setw(30) << left << pdbfile << endl;
+    cout << setw(30) << left << "xtcfile = " << setw(30) << left << xtcfile << endl;
+    cout << setw(30) << left << "nxtc = " << setw(30) << left << nxtc << endl;
+    cout << setw(30) << left << "nlog = " << setw(30) << left << nlog << endl;
+    cout << endl;
+    cout << setw(30) << left << "[ temperature ]" << endl;
+    cout << setw(30) << left << "reft = " << setw(30) << left << reft << endl;
+    cout << setw(30) << left << "coupl = " << setw(30) << left << tcouplstr << endl;
+    cout << setw(30) << left << "coll_freq = " << setw(30) << left << coll_freq << endl;
+    cout << endl;
+    cout << setw(30) << left << "[ rdf ]" << endl;
+    cout << setw(30) << left << "sample = " << setw(30) << left << dordfstr << endl;
+    cout << setw(30) << left << "nbins = " << setw(30) << left << rdf_nbins << endl;
+    cout << setw(30) << left << "outfile = " << setw(30) << left << rdf_outfile << endl;
+    cout << setw(30) << left << "freq = " << setw(30) << left << rdf_freq << endl;
+    cout << endl;
+    cout << setw(30) << left << "[ velocity ]" << endl;
+    cout << setw(30) << left << "sample = " << setw(30) << left << dovelstr << endl;
+    cout << setw(30) << left << "min = " << setw(30) << left << v_min << endl;
+    cout << setw(30) << left << "max = " << setw(30) << left << v_max << endl;
+    cout << setw(30) << left << "nbins = " << setw(30) << left << v_nbins << endl;
+    cout << setw(30) << left << "outfile = " << setw(30) << left << v_outfile << endl;
+    cout << setw(30) << left << "freq = " << setw(30) << left << v_freq << endl;
     cout << endl;
     
     #pragma omp parallel
@@ -771,7 +777,7 @@ int main(int argc, char *argv[])
 
     cout << endl;
 
-    cout << setprecision(6) << fixed;
+    cout << setprecision(6) << fixed << right;
 
     System sys(natoms, nsteps, rho, rcut, rlist, temp, dt, mindist, maxtries, pdbfile, reft, coll_freq, xtcfile, rdf_nbins, rdf_outfile, v_nbins, v_max, v_min, v_outfile);
     sys.UpdateNeighborList();
