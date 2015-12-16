@@ -22,11 +22,14 @@
 
 
 #include "chunksize.h"
+#include "coordinates.h"
 #include "NeighborList.h"
 #include "PdbFile.h"
 #include "Rdf.h"
 #include "Thermostat.h"
 #include "ThermodynamicVariable.h"
+#include "triclinicbox.h"
+#include "utils.h"
 #include "Velocity.h"
 
 #include <boost/property_tree/ptree.hpp>
@@ -34,10 +37,6 @@
 
 #include <xdrfile/xdrfile.h>
 #include <xdrfile/xdrfile_xtc.h>
-
-#include "gmxcpp/coordinates.h"
-#include "gmxcpp/triclinicbox.h"
-#include "gmxcpp/Utils.h"
 
 #include <iostream>
 #include "omp.h"

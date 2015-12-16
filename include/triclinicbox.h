@@ -20,26 +20,35 @@
  *
  */
 
-#ifndef THERMOSTAT_H
-#define THERMOSTAT_H
+/** @file
+ * @author James W. Barnett jbarnet4@tulane.edu
+ * @date December 5, 2014
+ * @brief Header for triclinicbox class
+ */
+
+#ifndef TRICLINICBOX_H
+#define TRICLINICBOX_H
 
 #include "coordinates.h"
-#include "chunksize.h"
-#include <random>
-#include <math.h>
-
+#include "xdrfile/xdrfile.h"
+#include <vector>
 using namespace std;
 
-// An Andersen thermostat
+/** @brief Box dimensions.
+ * @details This is just a two dimensional vector initialized to three
+ * items in each dimension. */
+class triclinicbox : public vector < vector <double> > {
+public:
+/** Constructor, makes the 2d vector 3x3 */
+triclinicbox();
 
-class Thermostat {
-    private:
-        double coll_freq_dt;
-        double sigma;
-    public:
-        Thermostat();
-        Thermostat(double reft, double coll_freq, double dt);
-        void DoCollisions(vector <coordinates> &v);
+/** Constructor where user provides dimensions */
+triclinicbox(double x1, double x2, double x3, double y1, double y2, double y3, double z1, double z2, double z3);
+
+/** Constructor where user provides dimensions, cubic */
+triclinicbox(double x, double y, double z);
+
+void operator=(double rhs);
 };
 
 #endif

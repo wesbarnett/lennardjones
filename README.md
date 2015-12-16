@@ -7,10 +7,9 @@
 Simulates Lennard Jonesium using Molecular Dynamics.
 
 The program is written in C++ and requires [Boost](http://www.boost.org/)
-libraries and development headers for reading the .ini file, Some of the classes
-I use are based on my [libgmxcpp](https://github.com/wesbarnett/libgmxcpp)
-library. xdrfile, included with libgmxcpp, is used in writing trajectory (.xtc)
-files.
+libraries and development headers for reading the .ini file, and xdrfile for
+writing the trajectory to .xtc. Some of the classes I use are based on my
+[libgmxcpp](https://github.com/wesbarnett/libgmxcpp) library.
 
 Current features:
 
