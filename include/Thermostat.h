@@ -30,11 +30,11 @@
 
 using namespace std;
 
+// An Andersen thermostat
+
 class Thermostat {
     private:
-        double coll_freq;
         double coll_freq_dt;
-        double reft;
         double sigma;
     public:
         Thermostat();

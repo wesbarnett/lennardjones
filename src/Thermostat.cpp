@@ -26,9 +26,7 @@ Thermostat::Thermostat() {}
 
 Thermostat::Thermostat(double reft, double coll_freq, double dt)
 {
-    this->reft = reft;
     this->sigma = sqrt(reft);
-    this->coll_freq = coll_freq;
     this->coll_freq_dt = coll_freq*dt;
     return;
 }
