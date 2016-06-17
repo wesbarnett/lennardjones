@@ -464,9 +464,6 @@ void System::WriteXTC(int step)
 
         // Shift all the points to the center of the box
         this->x[i] = pbc(this->x[i], this->box);
-        this->x[i][X] += this->box[X]*0.5;
-        this->x[i][Y] += this->box[Y]*0.5;
-        this->x[i][Z] += this->box[Z]*0.5;
 
         // Convert to "nanometers"
         x_xtc[i][X] = this->x[i][X]*0.1;
