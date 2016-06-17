@@ -25,16 +25,16 @@
 
 Rdf::Rdf() { }
 
-Rdf::Rdf(int nbins, triclinicbox &box, string outfile)
+Rdf::Rdf(int nbins, cubicbox &box, string outfile)
 {
     this->nbins = nbins;
     this->g.resize(this->nbins, 0.0);
-    this->binwidth = box.at(0).at(0) / (2.0 * this->nbins);
+    this->binwidth = box[0] / (2.0 * this->nbins);
     this->n = 0;
     this->outfile = outfile;
 }
 
-void Rdf::sample(vector <coordinates> &x, triclinicbox &box)
+void Rdf::sample(vector <coordinates> &x, cubicbox &box)
 {
     this->n++;
     #pragma omp parallel
@@ -48,7 +48,7 @@ void Rdf::sample(vector <coordinates> &x, triclinicbox &box)
             for (unsigned int j = i+1; j < x.size(); j++)
             {
                 double d = distance(x.at(i), x.at(j), box);
-                if (d < box.at(0).at(0)/2.0)
+                if (d < box[0]/2.0)
                 {
                     int ig = d/this->binwidth;
                     g_thread.at(ig) += 2.0;
@@ -68,7 +68,7 @@ void Rdf::sample(vector <coordinates> &x, triclinicbox &box)
     return;
 }
 
-void Rdf::normalize(int natoms, triclinicbox &box)
+void Rdf::normalize(int natoms, cubicbox &box)
 {
     double norm_factor = 4.0/3.0 * M_PI * natoms * (natoms-1.0) * this->n * pow(this->binwidth,3) / volume(box);
 

@@ -44,9 +44,9 @@ void Thermostat::DoCollisions(vector <coordinates> &v)
 
         if (dis(gen) < this->coll_freq_dt)
         {
-            v.at(i).at(X) = ndis(gen);
-            v.at(i).at(Y) = ndis(gen);
-            v.at(i).at(Z) = ndis(gen);
+            v[i][X] = ndis(gen);
+            v[i][Y] = ndis(gen);
+            v[i][Z] = ndis(gen);
         }
 
     }

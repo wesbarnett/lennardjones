@@ -33,7 +33,7 @@ Velocity::Velocity(int nbins, double max, double min, string outfile)
     this->hist.resize(this->nbins);
     for (int i = 0; i < this->nbins; i++)
     {
-        this->hist.at(i) = 0.0;
+        this->hist[i] = 0.0;
     }
     this->binwidth = (max - min) / (nbins);
     this->n = 0;
@@ -49,25 +49,25 @@ void Velocity::sample(vector <coordinates> &v)
         vector <coordinates> hist_thread(nbins);
         for (int i = 0; i < nbins; i++)
         {
-            hist_thread.at(i) = 0.0;
+            hist_thread[i] = 0.0;
         }
 
         #pragma omp for schedule(guided, CHUNKSIZE)
         for (unsigned int i = 0; i < v.size(); i++)
         {
-            iv = (v.at(i).at(X) + this->shift) / this->binwidth;
-            hist_thread.at(iv).at(X) += 1.0;
-            iv = (v.at(i).at(Y) + this->shift) / this->binwidth;
-            hist_thread.at(iv).at(Y) += 1.0;
-            iv = (v.at(i).at(Z) + this->shift) / this->binwidth;
-            hist_thread.at(iv).at(Z) += 1.0;
+            iv = (v[i][X] + this->shift) / this->binwidth;
+            hist_thread[iv][X] += 1.0;
+            iv = (v[i][Y] + this->shift) / this->binwidth;
+            hist_thread[iv][Y] += 1.0;
+            iv = (v[i][Z] + this->shift) / this->binwidth;
+            hist_thread[iv][Z] += 1.0;
         }
 
         #pragma omp critical
         {
             for (int i = 0; i < nbins; i++)
             {
-                hist.at(i) += hist_thread.at(i);
+                hist[i] += hist_thread[i];
             }
         }
     }
@@ -81,9 +81,9 @@ void Velocity::normalize(int natoms)
     #pragma omp parallel for schedule(guided, CHUNKSIZE)
     for (int i = 0; i < this->nbins; i++)
     {
-        this->hist.at(i).at(X) /= norm_factor;
-        this->hist.at(i).at(Y) /= norm_factor;
-        this->hist.at(i).at(Z) /= norm_factor;
+        this->hist[i][X] /= norm_factor;
+        this->hist[i][Y] /= norm_factor;
+        this->hist[i][Z] /= norm_factor;
     }
     return;
 }
@@ -95,9 +95,9 @@ void Velocity::output()
     for (unsigned int i = 0; i < this->hist.size(); i++)
     {
         oFS << setw(20) << i*this->binwidth - this->shift;
-        oFS << setw(20) << this->hist.at(i).at(X);
-        oFS << setw(20) << this->hist.at(i).at(Y);
-        oFS << setw(20) << this->hist.at(i).at(Z);
+        oFS << setw(20) << this->hist[i][X];
+        oFS << setw(20) << this->hist[i][Y];
+        oFS << setw(20) << this->hist[i][Z];
         oFS << endl;
     }
     oFS.close();

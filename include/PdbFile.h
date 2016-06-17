@@ -29,6 +29,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include "coordinates.h"
 using namespace std;
 
 class PdbFile {
@@ -37,7 +38,7 @@ class PdbFile {
         PdbFile();
         void open(string filename);
         void write_header(string compnd, string author, string remark);
-        void write_line(int atom_no, string atom_name, string res, int res_no, vector <double> &xyz, double occupancy, double beta);
+        void write_line(int atom_no, string atom_name, string res, int res_no, coordinates &x, double occupancy, double beta);
         void close();
     private:
         ofstream oFS;

@@ -33,7 +33,7 @@ NeighborList::NeighborList(int natoms, double rlist)
     return;
 }
 
-void NeighborList::Update(vector <coordinates> &x, triclinicbox &box)
+void NeighborList::Update(vector <coordinates> &x, cubicbox &box)
 {
     
     #pragma omp parallel for schedule(guided, CHUNKSIZE)

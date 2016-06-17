@@ -1,4 +1,5 @@
 /*
+ * libgmxcpp
  * Copyright (C) 2015 James W. Barnett <jbarnet4@tulane.edu>
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -19,114 +20,105 @@
  *
  */
 
-#include "coordinates.h"
+/**
+ * @file
+ * @author James W. Barnett jbarnet4@tulane.edu
+ * @date December 5, 2014
+ * @brief Header for coordinates class
+ * @see coordinates.h
+ */
+
+#include "gmxcpp/coordinates.h"
+
+coordinates::coordinates(){ }
 
 coordinates::coordinates(double x, double y, double z)
 {
-    this->resize(DIM);
-    this->at(X) = x;
-    this->at(Y) = y;
-    this->at(Z) = z;
-};
+    this->r[X] = x;
+    this->r[Y] = y;
+    this->r[Z] = z;
+}
 
-coordinates::coordinates()
+double& coordinates::operator[](int i)
 {
-    this->resize(DIM);
-};
+    return r[i];
+}
+
+const double& coordinates::operator[](int i) const
+{
+    return r[i];
+}
 
 void coordinates::set(double x, double y, double z)
 {
-	this->at(X) = x;
-	this->at(Y) = y;
-	this->at(Z) = z;
+    this->r[X] = x;
+    this->r[Y] = y;
+    this->r[Z] = z;
     return;
 }
 
 coordinates coordinates::operator-(coordinates rhs)
 {
-    coordinates x;
-
-    x.at(X) = this->at(X) - rhs.at(X);
-    x.at(Y) = this->at(Y) - rhs.at(Y);
-    x.at(Z) = this->at(Z) - rhs.at(Z);
-    return x;
+    return (coordinates (r[X] - rhs[X], r[Y] - rhs[Y], r[Z] - rhs[Z]));
 }
 
 void coordinates::operator-=(coordinates rhs)
 {
-    this->at(X) -= rhs.at(X);
-    this->at(Y) -= rhs.at(Y);
-    this->at(Z) -= rhs.at(Z);
+    r[X] -= rhs[X];
+    r[Y] -= rhs[Y];
+    r[Z] -= rhs[Z];
+    return;
 }
 
 coordinates coordinates::operator+(coordinates rhs)
 {
-    coordinates x;
-
-    x.at(X) = this->at(X) + rhs.at(X);
-    x.at(Y) = this->at(Y) + rhs.at(Y);
-    x.at(Z) = this->at(Z) + rhs.at(Z);
-    return x;
+    return (coordinates (r[X] + rhs[X], r[Y] + rhs[Y], r[Z] + rhs[Z]));
 }
 
 void coordinates::operator+=(coordinates rhs)
 {
-    this->at(X) += rhs.at(X);
-    this->at(Y) += rhs.at(Y);
-    this->at(Z) += rhs.at(Z);
+    r[X] += rhs[X];
+    r[Y] += rhs[Y];
+    r[Z] += rhs[Z];
+    return;
 }
 
 coordinates coordinates::operator/(double rhs)
 {
-    coordinates x;
-
-    x.at(X) = this->at(X) / rhs;
-    x.at(Y) = this->at(Y) / rhs;
-    x.at(Z) = this->at(Z) / rhs;
-    return x;
+    return (coordinates (r[X] / rhs, r[Y] / rhs, r[Z] / rhs));
 }
 
 void coordinates::operator/=(double rhs)
 {
-    this->at(X) /= rhs;
-    this->at(Y) /= rhs;
-    this->at(Z) /= rhs;
+    r[X] /= rhs;
+    r[Y] /= rhs;
+    r[Z] /= rhs;
     return;
 }
 
 coordinates operator*(coordinates lhs, double rhs)
 {
-    coordinates x;
-
-    x.at(X) = lhs.at(X) * rhs;
-    x.at(Y) = lhs.at(Y) * rhs;
-    x.at(Z) = lhs.at(Z) * rhs;
-    return x;
+    return (coordinates (lhs[X] * rhs, lhs[Y] * rhs, lhs[Z] * rhs));
 }
 
 coordinates operator*(double lhs, coordinates rhs)
 {
-    coordinates x;
-
-    x.at(X) = rhs.at(X) * lhs;
-    x.at(Y) = rhs.at(Y) * lhs;
-    x.at(Z) = rhs.at(Z) * lhs;
-    return x;
+    return (coordinates (rhs[X] * lhs, rhs[Y] * lhs, rhs[Z] * lhs));
 }
 
 void coordinates::operator*=(double rhs)
 {
-    this->at(X) *= rhs;
-    this->at(Y) *= rhs;
-    this->at(Z) *= rhs;
+    r[X] *= rhs;
+    r[Y] *= rhs;
+    r[Z] *= rhs;
     return;
 }
 
 void coordinates::operator=(double rhs)
 {
-    this->at(X) = rhs;
-    this->at(Y) = rhs;
-    this->at(Z) = rhs;
+    r[X] = rhs;
+    r[Y] = rhs;
+    r[Z] = rhs;
     return;
 }
 

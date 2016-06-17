@@ -25,7 +25,7 @@
 
 #include "coordinates.h"
 #include "chunksize.h"
-#include "triclinicbox.h"
+#include "cubicbox.h"
 #include "utils.h"
 
 class NeighborList {
@@ -38,7 +38,7 @@ class NeighborList {
         int GetNeighbor(int i, int j);
         int GetSize(int i);
         void Init(int natoms, double rlist);
-        void Update(vector <coordinates> &x, triclinicbox &box);
+        void Update(vector <coordinates> &x, cubicbox &box);
 };
 
 #endif

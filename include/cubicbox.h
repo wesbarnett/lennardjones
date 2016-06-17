@@ -1,5 +1,5 @@
-
 /*
+ * libgmxcpp
  * Copyright (C) 2015 James W. Barnett <jbarnet4@tulane.edu>
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -23,32 +23,40 @@
 /** @file
  * @author James W. Barnett jbarnet4@tulane.edu
  * @date December 5, 2014
- * @brief Header for triclinicbox class
+ * @brief Header for cubicbox class
  */
 
-#ifndef TRICLINICBOX_H
-#define TRICLINICBOX_H
+#ifndef CUBICBOX_H
+#define CUBICBOX_H
 
-#include "coordinates.h"
-#include "xdrfile/xdrfile.h"
+#include "gmxcpp/coordinates.h"
+#include "gmxcpp/xdrfile.h"
 #include <vector>
 using namespace std;
 
 /** @brief Box dimensions.
- * @details This is just a two dimensional vector initialized to three
- * items in each dimension. */
-class triclinicbox : public vector < vector <double> > {
+ * @details This is just a two dimensional array initialized to three
+ * items in each dimension. To access the elements of the array use operator().
+ * For example, to if the box is cubic and your have a cubicbox object named
+ * mybox, to get the X dimension do mybox(0). If you it is truly a cubicbox
+ * (not cubic) you can access elements with mybox(i,j).*/
+class cubicbox {
+
+private:
+
+    array <float,3> box;
+
 public:
-/** Constructor, makes the 2d vector 3x3 */
-triclinicbox();
+    /** Constructor, makes the 2d vector 3x3 */
+    cubicbox();
 
-/** Constructor where user provides dimensions */
-triclinicbox(double x1, double x2, double x3, double y1, double y2, double y3, double z1, double z2, double z3);
+    /** Constructor where user provides dimensions, cubic */
+    cubicbox(float x, float y, float z);
 
-/** Constructor where user provides dimensions, cubic */
-triclinicbox(double x, double y, double z);
+    float& operator[](int i);
 
-void operator=(double rhs);
+    const float& operator[](int i) const;
+
 };
 
 #endif

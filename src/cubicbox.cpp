@@ -1,5 +1,5 @@
-
 /*
+ * libgmxcpp
  * Copyright (C) 2015 James W. Barnett <jbarnet4@tulane.edu>
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -20,37 +20,33 @@
  *
  */
 
-#ifndef RDF_H
-#define RDF_H
+/**
+ * @file
+ * @author James W. Barnett jbarnet4@tulane.edu
+ * @date December 5, 2014
+ * @brief Header for cubicbox class
+ * @see cubicbox.h
+ */
 
-#include "coordinates.h"
-#include "chunksize.h"
 #include "cubicbox.h"
-#include "utils.h"
 
-#include <fstream>
-#include <iomanip>
-#include <math.h>
-#include <string>
-#include <vector>
+cubicbox::cubicbox() { }
 
-using namespace std;
-
-class Rdf {
-    private:
-        double binwidth;
-        double n;
-        int nbins;
-        string outfile;
-        vector <double> g;
-        int freq;
-    public:
-        Rdf();
-        Rdf(int nbins, cubicbox &box, string outfile);
-        void sample(vector <coordinates> &x, cubicbox &box);
-        void normalize(int natoms, cubicbox &box);
-        void output();
-};
+cubicbox::cubicbox(float x, float y, float z)
+{
+    this->box[X] = x;
+    this->box[Y] = y;
+    this->box[Z] = z;
+}
 
 
-#endif
+float& cubicbox::operator[](int i)
+{
+    return box[i];
+}
+
+const float& cubicbox::operator[](int i) const
+{
+    return box[i];
+}
+

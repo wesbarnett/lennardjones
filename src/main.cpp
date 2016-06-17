@@ -28,7 +28,7 @@
 #include "Rdf.h"
 #include "Thermostat.h"
 #include "ThermodynamicVariable.h"
-#include "triclinicbox.h"
+#include "cubicbox.h"
 #include "utils.h"
 #include "Velocity.h"
 
@@ -76,7 +76,7 @@ class System
         int nsteps;             // number of steps for simulation to perform
         NeighborList nlist;
         Rdf rdf;
-        triclinicbox box;
+        cubicbox box;
         ThermodynamicVariable KineticEnergy;
         ThermodynamicVariable PotentialEnergy;
         ThermodynamicVariable Pressure;
@@ -139,15 +139,9 @@ System::System(int natoms, int nsteps, double rho, double rcut, double rlist, do
 
     // Calculate box dimensions based on density and number of atoms.
     double box_side = pow(natoms/rho,1.0/3.0);
-    this->box.at(X).at(X) = box_side;
-    this->box.at(X).at(Y) = 0.0;
-    this->box.at(X).at(Z) = 0.0;
-    this->box.at(Y).at(Y) = box_side;
-    this->box.at(Y).at(X) = 0.0;
-    this->box.at(Y).at(Z) = 0.0;
-    this->box.at(Z).at(Z) = box_side;
-    this->box.at(Z).at(X) = 0.0;
-    this->box.at(Z).at(Y) = 0.0;
+    this->box[X] = box_side;
+    this->box[Y] = box_side;
+    this->box[Z] = box_side;
     cout << "Box is " << box_side << " in each dimension." << endl << endl;
 
     this->vol = volume(box);
@@ -159,9 +153,9 @@ System::System(int natoms, int nsteps, double rho, double rcut, double rlist, do
     // Draw from a uniform distribution centered at the origin
     random_device rd;
     mt19937 gen(rd());
-    uniform_real_distribution<double> disx(-box.at(X).at(X)/2.0,box.at(X).at(X)/2.0);
-    uniform_real_distribution<double> disy(-box.at(Y).at(Y)/2.0,box.at(Y).at(Y)/2.0);
-    uniform_real_distribution<double> disz(-box.at(Z).at(Z)/2.0,box.at(Z).at(Z)/2.0);
+    uniform_real_distribution<double> disx(-box[X]/2.0,box[X]/2.0);
+    uniform_real_distribution<double> disy(-box[Y]/2.0,box[Y]/2.0);
+    uniform_real_distribution<double> disz(-box[Z]/2.0,box[Z]/2.0);
     normal_distribution<double> dis_vel(0.0, sqrt(temp));
     coordinates sumv(0.0, 0.0, 0.0);
     double sumv2 = 0.0;
@@ -176,15 +170,15 @@ System::System(int natoms, int nsteps, double rho, double rcut, double rlist, do
 
 retrypoint:
 
-        this->x.at(i).at(X) = disx(gen);
-        this->x.at(i).at(Y) = disy(gen);
-        this->x.at(i).at(Z) = disz(gen);
+        this->x[i][X] = disx(gen);
+        this->x[i][Y] = disy(gen);
+        this->x[i][Z] = disz(gen);
 
         for (int j = 0; j < i; j++)
         {
 
             // Too close to to other points?
-            if (distance2(x.at(i), x.at(j), box) < mindist2)
+            if (distance2(x[i], x[j], box) < mindist2)
             {
                 if (i > maxtries)
                 {
@@ -197,12 +191,12 @@ retrypoint:
 
         // Point accepted if we're here
         
-        this->v.at(i).at(X) = dis_vel(gen);
-        this->v.at(i).at(Y) = dis_vel(gen);
-        this->v.at(i).at(Z) = dis_vel(gen);
+        this->v[i][X] = dis_vel(gen);
+        this->v[i][Y] = dis_vel(gen);
+        this->v[i][Z] = dis_vel(gen);
 
-        sumv += this->v.at(i);
-        sumv2 += dot(this->v.at(i), this->v.at(i));
+        sumv += this->v[i];
+        sumv2 += dot(this->v[i], this->v[i]);
 
         i++;
 
@@ -215,8 +209,8 @@ retrypoint:
     sumv2 = 0.0;
     for (int i = 0; i < this->natoms; i++)
     {
-        this->v.at(i) = (this->v.at(i) - sumv) * fs;
-        sumv2 += dot(this->v.at(i), this->v.at(i));
+        this->v[i] = (this->v[i] - sumv) * fs;
+        sumv2 += dot(this->v[i], this->v[i]);
     }
     this->temp = sumv2 / (3.0 * this->natoms);
     this->ke = 0.5 * sumv2 / this->natoms;
@@ -225,7 +219,7 @@ retrypoint:
     pdb.write_header(pdbfile, "LJ MD Simulator", "First frame");
     for (int i = 0; i < natoms; i++)
     {
-        pdb.write_line(i+1, "Ar", "LIG", 1, x.at(i), 1.00, 0.00);
+        pdb.write_line(i+1, "Ar", "LIG", 1, x[i], 1.00, 0.00);
     }
     pdb.close();
 
@@ -239,7 +233,7 @@ void System::CalcForce()
     double pe = 0.0;
     for (int i = 0; i < this->natoms; i++)
     {
-        this->f.at(i) = 0.0;
+        this->f[i] = 0.0;
     }
 
     #pragma omp parallel
@@ -248,7 +242,7 @@ void System::CalcForce()
         vector <coordinates> f_thread(natoms);
         for (int i = 0; i < this->natoms; i++)
         {
-            f_thread.at(i) = 0.0;
+            f_thread[i] = 0.0;
         }
 
         // Uses neighbor lists to calculate forces and energies. We didn't
@@ -264,7 +258,7 @@ void System::CalcForce()
             {
 
                 int j = nlist.GetNeighbor(i, neighb);
-                coordinates dr = pbc(x.at(i) - x.at(j), box);
+                coordinates dr = pbc(x[i] - x[j], box);
                 double r2 = dot(dr,dr);
 
                 if (r2 <= this->rcut2)
@@ -277,8 +271,8 @@ void System::CalcForce()
                     // We have to count the force both on atom i from j and on j
                     // from i, since we didn't double count on the neighbor
                     // lists
-                    f_thread.at(i) += fr;
-                    f_thread.at(j) -= fr;
+                    f_thread[i] += fr;
+                    f_thread[j] -= fr;
 
                     pe += 4.0*r6i*(r6i-1.0) - this->ecut;
                     ncut++;
@@ -294,7 +288,7 @@ void System::CalcForce()
 
             for (int i = 0; i < natoms; i++)
             {
-                this->f.at(i) += f_thread.at(i);
+                this->f[i] += f_thread[i];
             }
 
         }
@@ -305,7 +299,7 @@ void System::CalcForce()
     #pragma omp parallel for schedule(guided, CHUNKSIZE) reduction(+:vir)
     for (int i = 0; i < natoms; i++)
     {
-        vir += dot(f.at(i), x.at(i));
+        vir += dot(f[i], x[i]);
     }
     vir *= oneSixth;
     this->press = this->rhokB * this->temp + vir/this->vol + this->ptail;
@@ -326,8 +320,8 @@ void System::Integrate(int a, bool tcoupl)
         #pragma omp parallel for schedule(guided, CHUNKSIZE)
         for (int i = 0; i < this->natoms; i++)
         {
-            this->x.at(i) += this->v.at(i)*this->dt + this->f.at(i)*this->halfdt2;
-            this->v.at(i) += this->f.at(i)*this->halfdt;
+            this->x[i] += this->v[i]*this->dt + this->f[i]*this->halfdt2;
+            this->v[i] += this->f[i]*this->halfdt;
         }
     }
     else if (a == 1)
@@ -338,8 +332,8 @@ void System::Integrate(int a, bool tcoupl)
         #pragma omp parallel for schedule(guided, CHUNKSIZE) reduction(+:sumv2)
         for (int i = 0; i < natoms; i++)
         {
-            this->v.at(i) += this->f.at(i)*this->halfdt;
-            sumv2 += dot(this->v.at(i), this->v.at(i));
+            this->v[i] += this->f[i]*this->halfdt;
+            sumv2 += dot(this->v[i], this->v[i]);
         }
 
         if (tcoupl == true)
@@ -453,15 +447,15 @@ void System::WriteXTC(int step)
     matrix box_xtc;
 
     // Convert to "nanometer" (even though we are in reduced units)
-    box_xtc[X][X] = this->box.at(X).at(X)*0.1;
-    box_xtc[X][Y] = this->box.at(X).at(Y)*0.1;
-    box_xtc[X][Z] = this->box.at(X).at(Z)*0.1;
-    box_xtc[Y][X] = this->box.at(Y).at(X)*0.1;
-    box_xtc[Y][Y] = this->box.at(Y).at(Y)*0.1;
-    box_xtc[Y][Z] = this->box.at(Y).at(Z)*0.1;
-    box_xtc[Z][X] = this->box.at(Z).at(X)*0.1;
-    box_xtc[Z][Y] = this->box.at(Z).at(Y)*0.1;
-    box_xtc[Z][Z] = this->box.at(Z).at(Z)*0.1;
+    box_xtc[X][X] = this->box[X]*0.1;
+    box_xtc[X][Y] = 0.0;
+    box_xtc[X][Z] = 0.0;
+    box_xtc[Y][X] = 0.0;
+    box_xtc[Y][Y] = this->box[Y]*0.1;
+    box_xtc[Y][Z] = 0.0;
+    box_xtc[Z][X] = 0.0;
+    box_xtc[Z][Y] = 0.0;
+    box_xtc[Z][Z] = this->box[Z]*0.1;
 
     x_xtc = new rvec[this->x.size()];
     #pragma omp for
@@ -469,15 +463,15 @@ void System::WriteXTC(int step)
     {
 
         // Shift all the points to the center of the box
-        this->x.at(i) = pbc(this->x.at(i), this->box);
-        this->x.at(i).at(X) += this->box.at(X).at(X)*0.5;
-        this->x.at(i).at(Y) += this->box.at(Y).at(Y)*0.5;
-        this->x.at(i).at(Z) += this->box.at(Z).at(Z)*0.5;
+        this->x[i] = pbc(this->x[i], this->box);
+        this->x[i][X] += this->box[X]*0.5;
+        this->x[i][Y] += this->box[Y]*0.5;
+        this->x[i][Z] += this->box[Z]*0.5;
 
         // Convert to "nanometers"
-        x_xtc[i][X] = this->x.at(i).at(X)*0.1;
-        x_xtc[i][Y] = this->x.at(i).at(Y)*0.1;
-        x_xtc[i][Z] = this->x.at(i).at(Z)*0.1;
+        x_xtc[i][X] = this->x[i][X]*0.1;
+        x_xtc[i][Y] = this->x[i][Y]*0.1;
+        x_xtc[i][Z] = this->x[i][Z]*0.1;
 
     }
 

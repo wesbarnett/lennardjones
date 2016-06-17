@@ -16,7 +16,7 @@
 # directory of the source.
 
 add_executable(ljmd coordinates.cpp main.cpp NeighborList.cpp PdbFile.cpp
-Rdf.cpp ThermodynamicVariable.cpp Thermostat.cpp triclinicbox.cpp utils.cpp
+Rdf.cpp ThermodynamicVariable.cpp Thermostat.cpp cubicbox.cpp utils.cpp
 Velocity.cpp)
 
 find_library(
